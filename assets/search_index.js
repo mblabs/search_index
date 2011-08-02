@@ -20,11 +20,13 @@ var SiteIndex = {
 			self.sections.push(span.attr('id').replace(/section\-/,''));
 			span.removeClass('to-re-index');
 		});
-		
+		console.log(Symphony.Context.get('search_index'))
 		this.refresh_rate = Symphony.Context.get('search_index')['re-index-refresh-rate'] * 1000;
 		
 		// go, go, go
 		this.indexNextSection();
+		
+		this.bindUseAsSuggestion();
 		
 	},
 	
@@ -72,7 +74,23 @@ var SiteIndex = {
 				}
 			}
 		});
-	}
+	},
+	
+	bindUseAsSuggestion: function() {
+		jQuery('table span.suggestion').bind('click', function() {
+			var span = jQuery(this);
+			var keywords = span.parent().find('.keywords').text();
+			var use = span.hasClass('yes');
+			var use_as_suggestion = (use) ? 'no' : 'yes';
+			jQuery.get(Symphony.Context.get('root') + '/symphony/extension/search_index/mark_use_as_suggestion/?keywords='+keywords+'&use_as_suggestion='+use_as_suggestion, function() {
+				if(use) {
+					span.removeClass('yes');
+				} else {
+					span.addClass('yes');
+				}
+			})
+		});
+	},
 };
 
 jQuery(document).ready(function() {

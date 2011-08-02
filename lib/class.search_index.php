@@ -8,6 +8,8 @@ Class SearchIndex {
 	private static $_where = NULL;
 	private static $_joins = NULL;
 	
+	private static $_session_id = NULL;
+	
 	/**
 	* Set up static members
 	*/
@@ -326,7 +328,7 @@ Class SearchIndex {
 	public static function parseExcerpt($keywords, $text) {
 	
 		$text = trim($text);
-		$text = preg_replace("/\n/", '', $text);
+		$text = preg_replace("/\n/", ' ', $text);
 		$text = preg_replace("/[\s]{2,}/m", ' ', $text);
 		
 		// remove punctuation for highlighting
@@ -514,80 +516,12 @@ Class SearchIndex {
 		
 	}
 	
-	public static function countLogs($filter_keywords) {
-		return (int)Symphony::Database()->fetchVar('total', 0, sprintf("SELECT COUNT(*) AS `total` FROM (%s) as `temp`", self::getLogsSQL($filter_keywords)));
+	public function setSessionIdFromCookie($session_id) {
+		self::$_session_id = $session_id;
 	}
 	
-	private static function getLogsSQL($filter_keywords) {
-		$sql = sprintf(
-			"SELECT
-				id,
-				keywords,
-				keywords_manipulated,
-				date,
-				sections,
-				results,
-				MAX(page) as `depth`,
-				session_id
-			FROM
-				`tbl_search_index_logs`
-			%s
-			GROUP BY
-				keywords,
-				session_id
-			",
-			($filter_keywords ? "WHERE keywords LIKE '%" . $filter_keywords . "%'" : '')
-		);
-		return $sql;
-	}
-	
-	public static function getLogs($sort_column='date', $sort_direction='desc', $page=NULL, $filter_keywords=NULL) {
-		$page_size = (int)Symphony::Configuration()->get('pagination_maximum_rows', 'symphony');
-		$start = ($page - 1) * $page_size;
-		if(is_null($page)) {
-			$page_size = 999999999;
-			$start = 0;
-		}
-		$sql = sprintf(
-			"%s
-			ORDER BY %s %s
-			LIMIT %d, %d",
-			self::getLogsSQL($filter_keywords),
-			$sort_column,
-			$sort_direction,
-			$start,
-			$page_size
-		);
-		return Symphony::Database()->fetch($sql);
-	}
-	
-	public static function getStatsCount($statistic, $filter_keywords) {
-		
-		$filter = ($filter_keywords ? "WHERE keywords LIKE '%" . $filter_keywords . "%'" : '');
-		
-		switch($statistic) {
-			case 'unique-users':
-				return (int)Symphony::Database()->fetchVar('total', 0, sprintf(
-					"SELECT COUNT(DISTINCT(session_id)) as `total` FROM `tbl_search_index_logs` %s", $filter
-				));
-			break;
-			case 'unique-searches':
-				return (int)Symphony::Database()->fetchVar('total', 0, sprintf(
-					"SELECT COUNT(*) as `total` FROM (SELECT id FROM `tbl_search_index_logs` %s GROUP BY keywords, session_id) as `temp`", $filter
-				));
-			break;
-			case 'unique-terms':
-				return (int)Symphony::Database()->fetchVar('total', 0, sprintf(
-					"SELECT COUNT(DISTINCT(keywords)) as `total` FROM `tbl_search_index_logs` %s", $filter
-				));
-			break;
-			case 'average-results':
-				return (int)Symphony::Database()->fetchVar('total', 0, sprintf(
-					"SELECT AVG(`temp`.`average`) as `total` FROM (SELECT results as `average` FROM `tbl_search_index_logs` %s GROUP BY keywords, session_id) as `temp`", $filter
-				));
-			break;
-			
-		}
+	public function getSessionId() {
+		return self::$_session_id;
 	}
 	
 	public static function parseKeywordString($keywords, $stem_words=FALSE) {
@@ -672,10 +606,12 @@ Class SearchIndex {
 		
 	}
 	
-	public static function substr($str, $pos, $length) {
+	public static function substr($str, $pos, $length=NULL) {
 		if(function_exists('mb_substr')) {
+			if(is_null($length)) return mb_substr($str, $pos);
 			return mb_substr($str, $pos, $length);
 		} else {
+			if(is_null($length)) return substr($str, $pos, $length);
 			return substr($str, $pos, $length);
 		}
 	}

@@ -76,6 +76,8 @@
 				case 'id': $sql_order_by = "e.id $param_direction"; break;
 				default: $sql_order_by = "score $param_direction"; break;
 			}
+			
+			$indexes = SearchIndex::getIndexes();
 		
 		
 		// Find valid sections to query
@@ -92,18 +94,26 @@
 				$param_sections = '';
 			}
 			
-			$sections = array();
+			// the search will be performed on each of these sections individually (result count only)
+			$indexed_sections = Symphony::Database()->fetch(
+				sprintf(
+					"SELECT `id`, `handle`, `name` FROM `tbl_sections` WHERE id IN (%s)",
+					implode(',', array_keys($indexes))
+				)
+			);
+			
+			// the search will be performed on selected sections as a single search (to get results)
+			$search_sections = array();
 			foreach(array_map('trim', explode(',', $param_sections)) as $handle) {
-				$section = Symphony::Database()->fetchRow(0,
-					sprintf(
-						"SELECT `id`, `name` FROM `tbl_sections` WHERE handle = '%s' LIMIT 1",
-						Symphony::Database()->cleanValue($handle)
-					)
-				);
-				if ($section) $sections[$section['id']] = array('handle' => $handle, 'name' => $section['name']);
+				foreach($indexed_sections as $section) {
+					if($handle == $section['handle']) {
+						$search_sections[$section['id']] = array('handle' => $handle, 'name' => $section['name']);
+					}
+				}
 			}
 			
-			if (count($sections) == 0) return $this->errorXML('Invalid search sections');
+			if (count($search_sections) == 0) return $this->errorXML('Invalid search sections');
+		
 		
 		
 		// Set up and manipulate keywords	
@@ -116,12 +126,14 @@
 			$keywords = SearchIndex::applySynonyms($param_keywords);
 			$keywords_boolean = SearchIndex::parseKeywordString($keywords, $do_stemming);
 			$keywords_highlight = trim(implode(' ', $keywords_boolean['highlight']), '"');
+			
+			
 		
 		// Set up weighting
 		/*-----------------------------------------------------------------------*/
 
 			$sql_weighting = '';
-			foreach(SearchIndex::getIndexes() as $section_id => $index) {
+			foreach($indexes as $section_id => $index) {
 				$weight = isset($index['weighting']) ? $index['weighting'] : 2;
 				switch ($weight) {
 					case 0: $weight = 4; break;		// highest
@@ -144,7 +156,7 @@
 				
 				case 'FULLTEXT':
 				
-					$sql = sprintf(
+					$sql_entries = sprintf(
 						"SELECT 
 							SQL_CALC_FOUND_ROWS 
 							e.id as `entry_id`,
@@ -164,7 +176,7 @@
 							JOIN tbl_entries as `e` ON (index.entry_id = e.id)
 						WHERE
 							MATCH(index.data) AGAINST ('%4\$s' IN BOOLEAN MODE)
-							AND e.section_id IN ('%5\$s')
+							AND e.section_id IN (%5\$s)
 						ORDER BY
 							%6\$s
 						LIMIT %7\$d, %8\$d",
@@ -172,10 +184,22 @@
 						$sql_weighting,
 						($param_sort == 'score-recency') ? '/ SQRT(GREATEST(1, DATEDIFF(NOW(), creation_date)))' : '',
 						Symphony::Database()->cleanValue($keywords),
-						implode("','", array_keys($sections)),
+						implode(',', array_keys($search_sections)),
 						Symphony::Database()->cleanValue($sql_order_by),
 						max(0, ($this->dsParamSTARTPAGE - 1) * $this->dsParamLIMIT),
 						(int)$this->dsParamLIMIT
+					);
+					
+					$sql_count = sprintf(
+						"SELECT 
+							COUNT(e.id) as `count`
+						FROM
+							tbl_search_index as `index`
+							JOIN tbl_entries as `e` ON (index.entry_id = e.id)
+						WHERE
+							MATCH(index.data) AGAINST ('%1\$s' IN BOOLEAN MODE)
+							AND e.section_id IN (__SECTIONS__)",
+						Symphony::Database()->cleanValue($keywords)
 					);
 				
 				break;
@@ -247,7 +271,7 @@
 						$sql_order_by = preg_replace("/^score/", "(keywords_matched * score)", $sql_order_by);
 					}
 					
-					$sql = sprintf(
+					$sql_entries = sprintf(
 						"SELECT
 							SQL_CALC_FOUND_ROWS
 							e.id as `entry_id`,
@@ -271,7 +295,7 @@
 							JOIN tbl_entries as `e` ON (index.entry_id = e.id)
 						WHERE
 							%5\$s
-							AND e.section_id IN ('%6\$s')
+							AND e.section_id IN (%6\$s)
 						ORDER BY
 							%7\$s
 						LIMIT
@@ -281,13 +305,25 @@
 						$sql_weighting,
 						($param_sort == 'score-recency') ? '/ SQRT(GREATEST(1, DATEDIFF(NOW(), creation_date)))' : '',
 						$sql_where,
-						implode("','", array_keys($sections)),
+						implode(',', array_keys($search_sections)),
 						Symphony::Database()->cleanValue($sql_order_by),
 						max(0, ($this->dsParamSTARTPAGE - 1) * $this->dsParamLIMIT),
 						(int)$this->dsParamLIMIT
 					);
 					
-					//echo $sql;die;
+					$sql_count = sprintf(
+						"SELECT
+							COUNT(e.id) as `count`
+						FROM
+							tbl_search_index as `index`
+							JOIN tbl_entries as `e` ON (index.entry_id = e.id)
+						WHERE
+							%1\$s
+							AND e.section_id IN (__SECTIONS__)",
+						$sql_where
+					);
+					
+					//echo $sql_entries;die;
 				
 				break;
 
@@ -300,9 +336,17 @@
 			// we have search words, check for soundalikes
 			if(count($keywords_boolean['include-words-all']) > 0) {
 				
+				require_once(EXTENSIONS . '/search_index/lib/strip_punctuation.php');
+				
+				$include_words_all = array();
+				foreach($keywords_boolean['include-words-all'] as $word) {
+					$include_words_all[] = strip_punctuation($word);
+				}
+				$include_words_all = array_unique($include_words_all);
+				
 				$sounds_like = array();
 				
-				foreach($keywords_boolean['include-words-all'] as $word) {
+				foreach($include_words_all as $word) {
 					$soundalikes = Symphony::Database()->fetchCol('keyword', sprintf(
 						"SELECT keyword FROM tbl_search_index_keywords WHERE SOUNDEX(keyword) = SOUNDEX('%s')",
 						Symphony::Database()->cleanValue($word)
@@ -343,7 +387,7 @@
 		/*-----------------------------------------------------------------------*/
 			
 			// get our entries, returns entry IDs
-			$entries = Symphony::Database()->fetch($sql);
+			$entries = Symphony::Database()->fetch($sql_entries);
 			$total_entries = Symphony::Database()->fetchVar('total', 0, 'SELECT FOUND_ROWS() AS `total`');
 			
 			// append input values
@@ -365,19 +409,31 @@
 				)
 			);
 			
+			$index_query_counts = array();
+			foreach($indexed_sections as $section) {
+				$index_query_counts[] = (int)$section['id'];
+			}
+			
+			//$search_sections
 			// append list of sections
 			$sections_xml = new XMLElement('sections');
-			foreach($sections as $id => $section) {
-				$sections_xml->appendChild(
-					new XMLElement(
-						'section',
-						General::sanitize($section['name']),
-						array(
-							'id' => $id,
-							'handle' => $section['handle']
-						)
+			foreach($indexed_sections as $section) {
+				
+				$section_xml = new XMLElement(
+					'section',
+					General::sanitize($section['name']),
+					array(
+						'id' => $section['id'],
+						'handle' => $section['handle'],
+						'selected' => (in_array($section['id'], array_keys($search_sections))) ? 'yes' : 'no'
 					)
 				);
+				
+				if($config->{'return-count-for-each-section'} == 'yes') {
+					$section_xml->setAttribute('results', Symphony::Database()->fetchVar('count', 0, preg_replace('/__SECTIONS__/', $section['id'], $sql_count)));
+				}
+				
+				$sections_xml->appendChild($section_xml);
 			}
 			$result->appendChild($sections_xml);
 		
@@ -407,7 +463,7 @@
 					NULL,
 					array(
 						'id' => $entry['entry_id'],
-						'section' => $sections[$entry['section_id']]['handle'],
+						'section' => $search_sections[$entry['section_id']]['handle'],
 						//'score' => round($entry['score'], 3)
 					)
 				);
@@ -439,30 +495,45 @@
 		
 			if ($config->{'log-keywords'} == 'yes') {
 				
-				$section_handles = array_map('reset', array_values($sections));
+				$section_handles = array_map('reset', array_values($search_sections));
+				
+				$id = sha1(sprintf(
+					'%s-%s-%s',
+					SearchIndex::getSessionId(),
+					Symphony::Database()->cleanValue($param_keywords),
+					Symphony::Database()->cleanValue(implode(',', $section_handles))
+				));
 				
 				// has this search (keywords+sections) already been logged this session?
 				$already_logged = Symphony::Database()->fetch(sprintf(
-					"SELECT * FROM `tbl_search_index_logs` WHERE keywords='%s' AND sections='%s' AND session_id='%s'",
-					Symphony::Database()->cleanValue($param_keywords),
-					Symphony::Database()->cleanValue(implode(',', $section_handles)),
-					session_id()
+					"SELECT
+					 	id
+					FROM
+						`tbl_search_index_logs`
+					WHERE 1=1
+						AND id = '%s'
+						AND page >= '%d'
+					",
+					$id,
+					$this->dsParamSTARTPAGE
 				));
 				
-				$log_sql = sprintf(
-					"INSERT INTO `tbl_search_index_logs`
-					(date, keywords, keywords_manipulated, sections, page, results, session_id)
-					VALUES('%s', '%s', '%s', '%s', %d, %d, '%s')",
-					date('Y-m-d H:i:s', time()),
-					Symphony::Database()->cleanValue($param_keywords),
-					Symphony::Database()->cleanValue($keywords),
-					Symphony::Database()->cleanValue(implode(',', $section_handles)),
-					$this->dsParamSTARTPAGE,
-					$total_entries,
-					session_id()
-				);
-				
-				Symphony::Database()->query($log_sql);
+				if(!$already_logged) {
+					Symphony::Database()->insert(
+						array(
+							'id' => $id,
+							'date' => date('Y-m-d H:i:s', time()),
+							'keywords' => Symphony::Database()->cleanValue($param_keywords),
+							'sections' => Symphony::Database()->cleanValue(implode(',', $section_handles)),
+							'page' => $this->dsParamSTARTPAGE,
+							'results' => $total_entries,
+							'session_id' => SearchIndex::getSessionId(),
+							'user_agent' => Symphony::Database()->cleanValue(HTTP_USER_AGENT)
+						),
+						'tbl_search_index_logs',
+						TRUE
+					);
+				}
 				
 			}
 		

@@ -114,6 +114,7 @@
 			Symphony::Configuration()->set('max-word-length', 30, 'search_index');
 			Symphony::Configuration()->set('stem-words', 'yes', 'search_index');
 			Symphony::Configuration()->set('build-entries', 'no', 'search_index');
+			Symphony::Configuration()->set('return-count-for-each-section', 'yes', 'search_index');
 			Symphony::Configuration()->set('mode', 'like', 'search_index');
 			Symphony::Configuration()->set('log-keywords', 'yes', 'search_index');
 						
@@ -143,6 +144,15 @@
 			if(version_compare($previousVersion, '0.7.1', '<')){
 				$this->install();
 			}
+			
+			if(version_compare($previousVersion, '0.9.1', '<')){
+				Symphony::Configuration()->set('return-count-for-each-section', 'yes', 'search_index');
+				Administration::instance()->saveConfig();
+				Symphony::Database()->query("ALTER TABLE `tbl_search_index_logs` ADD `use_as_suggestion` enum('yes','no') DEFAULT 'no'");
+				Symphony::Database()->query("ALTER TABLE `tbl_search_index_logs` ADD `user_agent` varchar(255) DEFAULT NULL");
+			}
+			
+			
 			
 			return TRUE;
 		}
@@ -204,6 +214,11 @@
 					'delegate'	=> 'DashboardPanelTypes',
 					'callback'	=> 'dashboardPanelTypes'
 				),
+				array(
+					'page'		=> '/frontend/',
+					'delegate'	=> 'FrontendPageResolved',
+					'callback'	=> 'generate_session'
+				),
 			);
 		}
 		
@@ -224,10 +239,28 @@
 				),
 				array(
 					'location'	=> __('Search Index'),
-					'name'		=> __('Logs'),
-					'link'		=> '/logs/'
+					'name'		=> __('Session Logs'),
+					'link'		=> '/sessions/'
+				),
+				array(
+					'location'	=> __('Search Index'),
+					'name'		=> __('Query Logs'),
+					'link'		=> '/queries/'
 				),
 			);
+		}
+		
+		public function generate_session($context) {
+			$cookie_name = sprintf('%ssearch-index-session', Symphony::Configuration()->set('cookie_prefix', 'symphony'));
+			$cookie_value = $_COOKIE[$cookie_name];
+			
+			// cookie has not been set
+			if(!isset($cookie_value)) {
+				$cookie_value = uniqid();
+				setcookie($cookie_name, $cookie_value);
+			}
+			
+			SearchIndex::setSessionIdFromCookie($cookie_value);
 		}
 		
 		/**

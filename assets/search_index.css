@@ -48,3 +48,72 @@ h2 span.meta {
 	left: 21em;
 	position: absolute;
 }
+
+table span.suggestion {
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	background: #eee;
+	-webkit-border-radius: 100px;
+	vertical-align: baseline;
+	margin: 0 5px 0 0;
+	position: relative;
+	cursor: pointer;
+}
+
+table span.suggestion.yes,
+table span.suggestion.yes:hover {
+	background: #81B934;
+}
+
+table span.suggestion:hover {
+	background: #ccc;
+}
+
+table .date,
+table .depth,
+table .results,
+table .rank,
+table .percent,
+table .count {
+	width: 120px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+table .date {
+	width: 160px;
+}
+
+table .keywords {
+	white-space: nowrap;
+}
+
+table .session_id {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+
+
+table.sessions tbody tr.last td {
+	border-bottom: 1px solid #ccc;
+}
+
+table.sessions tbody tr:first-child td {
+	border-top: 1px solid #ddd;
+}
+table.sessions tbody tr:last-child td {
+	border-bottom: 1px solid #ddd;
+}
+
+table.sessions tbody tr td {
+	background: #F5F5F4;
+	border-color: #eee;
+}
+
+table.sessions tbody tr.alt td {
+	background: #fff;
+}

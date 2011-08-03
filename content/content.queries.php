@@ -105,6 +105,8 @@
 					);
 				}
 				
+				$autosuggestions = SearchIndex::getQuerySuggestions();
+				
 				// rank starts from 1 on first page
 				$rank = ($pagination->start == 1) ? $pagination->start : $pagination->start + 1;
 				// initial percentage to start from (cumulative)
@@ -118,7 +120,7 @@
 					$r = array();
 					$r[] = Widget::TableData($rank, 'rank');
 					$r[] = Widget::TableData(
-						(empty($row['keywords']) ? __('None') : $row['keywords']),
+						(empty($row['keywords']) ? __('None') : '<span class="suggestion '.(in_array(strtolower(trim($row['keywords'])), $autosuggestions) ? 'yes' : 'no').'"></span><span class="query">' . $row['keywords'] . '</span>'),
 						(empty($row['keywords']) ? 'inactive' : '')
 					);
 					$r[] = Widget::TableData($row['count'], 'count');

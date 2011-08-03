@@ -57,7 +57,7 @@ table span.suggestion {
 	background: #eee;
 	-webkit-border-radius: 100px;
 	vertical-align: baseline;
-	margin: 0 5px 0 0;
+	margin: 0 5px 0 -13px;
 	position: relative;
 	cursor: pointer;
 }

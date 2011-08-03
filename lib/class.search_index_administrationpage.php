@@ -11,8 +11,13 @@
 		protected $pagination = NULL;
 		
 		public function view() {
+			$this->addElementToHead(new XMLElement(
+				'script',
+				"Symphony.Context.add('search_index', " . json_encode(Symphony::Configuration()->get('search_index')) . ")",
+				array('type' => 'text/javascript')
+			), 99);
 			$this->addStylesheetToHead(URL . '/extensions/search_index/assets/search_index.css', 'screen', 100);
-			$this->addScriptToHead(URL . '/extensions/search_index/assets/search_index.analysis.js', 100);			
+			$this->addScriptToHead(URL . '/extensions/search_index/assets/search_index.js', 100);
 		}
 		
 		protected function __buildPagination($pagination) {

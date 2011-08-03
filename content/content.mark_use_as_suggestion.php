@@ -12,13 +12,18 @@
 						
 		public function __viewIndex() {
 			
-			$keywords = $_GET['keywords'];
+			$query = strtolower(trim($_GET['query']));
 			$use_as_suggestion = $_GET['use_as_suggestion'];
 			
-			Symphony::Database()->query(sprintf(
-				"UPDATE tbl_search_index_logs SET use_as_suggestion='%s' WHERE keywords='%s'",
-				$use_as_suggestion, Symphony::Database()->cleanValue($keywords)
-			));
+			$suggestions = SearchIndex::getQuerySuggestions();
+			
+			foreach($suggestions as $i => $suggestion) {
+				if($suggestion == $query) unset($suggestions[$i]);
+			}
+			
+			if($use_as_suggestion == 'yes') $suggestions[] = $query;
+			
+			SearchIndex::saveQuerySuggestions($suggestions);
 			
 			exit();
 			

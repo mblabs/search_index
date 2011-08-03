@@ -467,7 +467,7 @@ Class SearchIndex {
 		//$indexes = preg_replace("/\\\/",'',$synonyms);
 		$synonyms = unserialize($synonyms);
 		if (!is_array($synonyms)) $synonyms = array();
-		uasort($synonyms, array('SearchIndex', 'sortSynonymsCallback'));
+		uasort($synonyms, array('SearchIndex', 'sortAlphabetical'));
 		return $synonyms;
 	}
 	
@@ -481,8 +481,8 @@ Class SearchIndex {
 		Symphony::Configuration()->set('synonyms', stripslashes(serialize($synonyms)), 'search_index');
 		Symphony::Engine()->saveConfig();
 	}
-	
-	private static function sortSynonymsCallback($a, $b) {
+		
+	private static function sortAlphabetical($a, $b) {
 		return strcmp($a['word'], $b['word']);
 	}
 	
@@ -666,8 +666,31 @@ Class SearchIndex {
 			}
 		}
 		return true;
-	} 
-  
+	}
+	
+	/**
+	* Returns an array of all synonyms
+	*/
+	public static function getQuerySuggestions() {
+		$suggestions = Symphony::Configuration()->get('autosuggestions', 'search_index');
+		//$indexes = preg_replace("/\\\/",'',$synonyms);
+		$suggestions = unserialize($suggestions);
+		if (!is_array($suggestions)) $suggestions = array();
+		uasort($suggestions, array('SearchIndex', 'sortAlphabetical'));
+		return $suggestions;
+	}
+	
+	/**
+	* Save all synonyms to config
+	*
+	* @param array $synonyms
+	*/
+	public static function saveQuerySuggestions($suggestions) {
+		self::assert();
+		Symphony::Configuration()->set('autosuggestions', stripslashes(serialize($suggestions)), 'search_index');
+		Symphony::Engine()->saveConfig();
+	}
+	
 	
 	
 	

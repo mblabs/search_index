@@ -37,7 +37,8 @@ var SiteIndex = {
 	
 	indexSectionByPage: function(section_id, page) {
 		var self = this;
-		var span = jQuery('#section-' + section_id).addClass('re-index');
+		var span = jQuery('#section-' + section_id);
+		span.parent().prev().addClass('spinner');
 		
 		jQuery.ajax({
 			url: Symphony.Context.get('root') + '/symphony/extension/search_index/reindex/?section=' + section_id + '&page=' + page,
@@ -67,7 +68,7 @@ var SiteIndex = {
 								Symphony.Language.get('{$total} entries', { total: total_entries})
 							);
 						}
-						span.removeClass('re-index');
+						span.parent().prev().removeClass('spinner');
 						self.progress++;
 						self.indexNextSection();
 					}, self.refresh_rate);

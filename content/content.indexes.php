@@ -131,7 +131,7 @@
 			$fieldset = new XMLElement('fieldset');
 			$fieldset->setAttribute('class', 'settings');
 			$fieldset->appendChild(new XMLElement('legend', __('Included Fields')));
-			$p = new XMLElement('p', __('Only selected fields will be indexed.'));
+			$p = new XMLElement('p', __('Only the content of selected fields will be indexed.'));
 			$p->setAttribute('class', 'help');
 			$fieldset->appendChild($p);
 			

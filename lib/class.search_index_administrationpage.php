@@ -115,12 +115,13 @@
 			);
 		}
 		
-		protected function __buildURL($override=array()) {
+		protected function __buildURL($override=array(), $extra=array()) {
 	
 			$sort = clone $this->sort;
 			$filter = clone $this->filter;
 			$pagination = clone $this->pagination;
 			
+			if(!is_array($override)) $override = array();			
 			foreach($override as $context => $value) {
 				$group = reset(explode('->', $context));
 				$key = end(explode('->', $context));
@@ -142,6 +143,10 @@
 					if(empty($value) || ($name == 'pagination' && $key != 'current-page')) continue;
 					$url .= sprintf('%s[%s]=%s&amp;', (string)$name, (string)$key, (string)$value);
 				}
+			}
+			
+			foreach($extra as $key => $value) {
+				$url .= sprintf('%s=%s&amp;', (string)$key, (string)$value);
 			}
 			
 			$url = preg_replace("/&amp;$/", '', $url);

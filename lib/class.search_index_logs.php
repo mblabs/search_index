@@ -38,9 +38,6 @@ Class SearchIndexLogs {
 	}
 	
 	public static function getSessions($sort_column, $sort_direction, $pagination_page=NULL, $pagination_per_page=NULL, $filter) {
-		if($pagination_per_page == NULL) {
-			$pagination_per_page = (int)Symphony::Configuration()->get('pagination_maximum_rows', 'symphony');
-		}
 		$pagination_start = ($pagination_page - 1) * $pagination_per_page;
 		
 		if(!isset($pagination_page)) {
@@ -121,7 +118,7 @@ Class SearchIndexLogs {
 			FROM
 				`tbl_search_index_logs`
 			WHERE 1=1
-				AND keywords <> ''
+				-- AND keywords <> ''
 				%s
 			",
 			self::__buildWhereFilter($filter)
@@ -152,9 +149,6 @@ Class SearchIndexLogs {
 	}
 	
 	public static function getQueries($sort_column, $sort_direction, $pagination_page, $pagination_per_page, $filter) {
-		if($pagination_per_page == NULL) {
-			$pagination_per_page = (int)Symphony::Configuration()->get('pagination_maximum_rows', 'symphony');
-		}
 		$pagination_start = ($pagination_page - 1) * $pagination_per_page;
 		
 		if(!isset($pagination_page)) {
@@ -188,7 +182,7 @@ Class SearchIndexLogs {
 			FROM
 				`tbl_search_index_logs`
 			WHERE 1=1
-				AND keywords <> ''
+				-- AND keywords <> ''
 				%s
 			GROUP BY
 				keywords

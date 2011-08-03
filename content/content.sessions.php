@@ -15,23 +15,6 @@
 			
 			parent::view();
 			
-			// Set up page meta data
-			/*-----------------------------------------------------------------------*/	
-			
-			$this->setPageType('table');
-			$this->setTitle(__('Symphony') . ' &ndash; ' . __('Search Indexes'));
-			$this->appendSubheading(
-				__('Search Index') . " &rsaquo; " .
-				(($filter_session_id) ? '<a href="'.Administration::instance()->getCurrentPageURL() . '?pg=1&amp;sort='.$sort_column.'&amp;order='.$sort_order.'&amp;keywords='.$filter_keywords.'&amp;session_id=">'.__('Logs').'</a> &rsaquo; Session ' . $filter_session_id : __('Logs') ).
-				Widget::Anchor(
-					__('Export CSV'),
-					Administration::instance()->getCurrentPageURL(). '?view=export&amp;sort='.$sort_column.'&amp;order='.$sort_order.'&amp;keywords='.$filter_keywords,
-					NULL,
-					'button'
-				)->generate()
-			);
-			
-			
 			// Get URL parameters, set defaults
 			/*-----------------------------------------------------------------------*/	
 			$sort = (object)$_GET['sort'];
@@ -45,10 +28,12 @@
 			if (!isset($filter->date_from)) $filter->date_from = date('Y-m-d', strtotime('last month'));
 			if (!isset($filter->date_to)) $filter->date_to = date('Y-m-d', strtotime('today'));
 			
+			$output_mode = $_GET['output'];
+			if (!isset($output_mode)) $output_mode = 'table';
 			
 			// Build pagination and fetch rows
 			/*-----------------------------------------------------------------------*/
-			$pagination->{'per-page'} = 10;
+			$pagination->{'per-page'} = (int)Symphony::Configuration()->get('pagination_maximum_rows', 'symphony');
 			$pagination->{'current-page'} = (@(int)$pagination->{'current-page'} > 1 ? (int)$pagination->{'current-page'} : 1);
 			
 			// get the logs!
@@ -69,6 +54,23 @@
 			$this->sort = $sort;
 			$this->filter = $filter;
 			$this->pagination = $pagination;
+			
+			
+			// Set up page meta data
+			/*-----------------------------------------------------------------------*/	
+			
+			$this->setPageType('table');
+			$this->setTitle(__('Symphony') . ' &ndash; ' . __('Search Index') . ' &ndash; ' . __('Session Logs'));
+			$this->appendSubheading(
+				__('Search Index') . ' &rsaquo; ' . __('Session Logs') .
+				Widget::Anchor(
+					__('Export CSV'),
+					$this->__buildURL(NULL, array('output' => 'csv')),
+					NULL,
+					'button'
+				)->generate()
+			);
+			
 			
 			/*$stats = array(
 				'unique-users' => SearchIndexLogs::getStatsCount('unique-users', $filter),
@@ -144,11 +146,66 @@
 						
 					}
 					
-					
-					
 					$alt = !$alt;
 					
 				}
+			}
+			
+			if($output_mode == 'csv') {
+				
+				$file_path = sprintf('%s/search-index.session-log.%d.csv', TMP, time());
+				$csv = fopen($file_path, 'w');
+				
+				$columns = array();
+				foreach($tableHead as $i => $heading) {
+					$element = reset($heading);
+					if($element instanceOf XMLElement) {
+						$columns[] = reset($heading)->getValue();
+					} else {
+						$columns[] = (string)$element;
+					}
+				}
+				$columns[] = 'Session ID';
+				$columns[] = 'User Agent';
+				$columns[] = 'IP';
+				
+				fputcsv($csv, $columns, ',', '"');
+
+				$meta = array();
+
+				foreach($tableBody as $tr) {
+					$cells = $tr->getChildren();
+					if(preg_match("/session-meta/", $tr->getAttribute('class'))) {
+						$meta = array();
+						foreach($cells as $i => $td) {
+							switch($i) {
+								case 0: $meta['session_id'] = $td->getValue(); break;
+								case 1: $meta['user_agent'] = $td->getValue(); break;
+								case 2: $meta['ip'] = $td->getValue(); break;
+							}
+						}
+					} else {
+						$data = array();
+						foreach($cells as $td) {
+							$data[] = $td->getValue();
+						}
+						$data[] = $meta['session_id'];
+						$data[] = $meta['user_agent'];
+						$data[] = $meta['ip'];
+						fputcsv($csv, $data, ',', '"');
+					}
+					
+				}
+				
+				fclose($csv);
+				
+				header('Content-type: application/csv');
+				header('Content-Disposition: attachment; filename="' . end(explode('/', $file_path)) . '"');
+				readfile($file_path);
+				unlink($file_path);
+				
+				exit;
+				
 			}
 			
 			$table = Widget::Table(Widget::TableHead($tableHead), NULL, Widget::TableBody($tableBody), 'sessions');
@@ -160,37 +217,5 @@
 			}
 
 		}
+				
 	}
-	
-	
-	
-	// if($filter_view == 'export') {
-	// 	
-	// 	$file_path = sprintf('%s/search-index.log.%d.csv', TMP, time());
-	// 	$csv = fopen($file_path, 'w');
-	// 	
-	// 	fputcsv($csv, array(__('Date'), __('Keywords'), __('Adjusted Keywords'), __('Results'), __('Depth'), __('Session ID')), ',', '"');
-	// 	
-	// 	foreach($rows as $row) {
-	// 		fputcsv($csv, array(
-	// 			$row['date'],
-	// 			$row['keywords'],
-	// 			$row['keywords_manipulated'],
-	// 			$row['results'],
-	// 			$row['depth'],
-	// 			$row['session_id']
-	// 		), ',', '"');
-	// 	}
-	// 	
-	// 	fclose($csv);
-	// 	
-	// 	header('Content-type: application/csv');
-	// 	header('Content-Disposition: attachment; filename="' . end(explode('/', $file_path)) . '"');
-	// 	readfile($file_path);
-	// 	unlink($file_path);
-	// 	
-	// 	exit;
-	// 	
-	// }
-	// 
-	

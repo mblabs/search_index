@@ -8,14 +8,6 @@
 			
 			parent::view();
 			
-			// Set up page meta data
-			/*-----------------------------------------------------------------------*/	
-			
-			$this->setPageType('table');
-			$this->setTitle(__('Symphony') . ' &ndash; ' . __('Search Indexes'));
-			$this->appendSubheading(__('Search Index') . " &rsaquo; Log Analysis");
-			
-			
 			// Get URL parameters, set defaults
 			/*-----------------------------------------------------------------------*/	
 			$sort = (object)$_GET['sort'];
@@ -29,10 +21,12 @@
 			if (!isset($filter->date_from)) $filter->date_from = date('Y-m-d', strtotime('last month'));
 			if (!isset($filter->date_to)) $filter->date_to = date('Y-m-d', strtotime('today'));
 			
+			$output_mode = $_GET['output'];
+			if (!isset($output_mode)) $output_mode = 'table';
 			
 			// Build pagination and fetch rows
 			/*-----------------------------------------------------------------------*/
-			$pagination->{'per-page'} = 5;
+			$pagination->{'per-page'} = 50;
 			$pagination->{'current-page'} = (@(int)$pagination->{'current-page'} > 1 ? (int)$pagination->{'current-page'} : 1);
 			
 			// get the logs!
@@ -56,6 +50,22 @@
 			$this->sort = $sort;
 			$this->filter = $filter;
 			$this->pagination = $pagination;
+			
+			
+			// Set up page meta data
+			/*-----------------------------------------------------------------------*/	
+			
+			$this->setPageType('table');
+			$this->setTitle(__('Symphony') . ' &ndash; ' . __('Search Index') . ' &ndash; ' . __('Query Logs'));
+			$this->appendSubheading(
+				__('Search Index') . ' &rsaquo; ' . __('Query Logs') .
+				Widget::Anchor(
+					__('Export CSV'),
+					$this->__buildURL(NULL, array('output' => 'csv')),
+					NULL,
+					'button'
+				)->generate()
+			);
 			
 			
 			// Build table
@@ -121,6 +131,44 @@
 					$rank++;
 					
 				}
+				
+			}
+			
+			if($output_mode == 'csv') {
+				
+				$file_path = sprintf('%s/search-index.query-log.%d.csv', TMP, time());
+				$csv = fopen($file_path, 'w');
+				
+				$columns = array();
+				foreach($tableHead as $i => $heading) {
+					$element = reset($heading);
+					if($element instanceOf XMLElement) {
+						$columns[] = reset($heading)->getValue();
+					} else {
+						$columns[] = (string)$element;
+					}
+					
+				}
+				
+				fputcsv($csv, $columns, ',', '"');
+
+				foreach($tableBody as $tr) {
+					$cells = $tr->getChildren();
+					$data = array();
+					foreach($cells as $td) {
+						$data[] = $td->getValue();
+					}
+					fputcsv($csv, $data, ',', '"');
+				}
+				
+				fclose($csv);
+				
+				header('Content-type: application/csv');
+				header('Content-Disposition: attachment; filename="' . end(explode('/', $file_path)) . '"');
+				readfile($file_path);
+				unlink($file_path);
+				
+				exit;
 				
 			}
 			

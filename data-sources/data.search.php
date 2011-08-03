@@ -528,7 +528,8 @@
 							'page' => $this->dsParamSTARTPAGE,
 							'results' => $total_entries,
 							'session_id' => SearchIndex::getSessionId(),
-							'user_agent' => Symphony::Database()->cleanValue(HTTP_USER_AGENT)
+							'user_agent' => Symphony::Database()->cleanValue(HTTP_USER_AGENT),
+							'ip' => Symphony::Database()->cleanValue(REMOTE_ADDR),
 						),
 						'tbl_search_index_logs',
 						TRUE

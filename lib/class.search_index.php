@@ -38,7 +38,6 @@ Class SearchIndex {
 	* @param array $indexes
 	*/
 	public static function saveIndexes($indexes) {
-		self::assert();
 		Symphony::Configuration()->set('indexes', stripslashes(serialize($indexes)), 'search_index');
 		Symphony::Engine()->saveConfig();
 	}
@@ -183,12 +182,16 @@ Class SearchIndex {
 		$data = strip_tags($data);
 		$data = strtolower($data);
 		
-		if(!self::is_utf8($data)) {
-			$data = utf8_encode($data);
-		}
-
+		// force UTF-8 encoding
+		if(!self::is_utf8($data)) $data = utf8_encode($data);
+		
+		// remove dodgy ASCII characters
+		// note: I don't recall where these line came from or what they do,
+		// but they look suitably complex to leave in...
 		$data = preg_replace('~&#x([0-9a-f]+);~ei', 'chr(hexdec("\\1"))', $data);
 	    $data = preg_replace('~&#([0-9]+);~e', 'chr("\\1")', $data);
+	
+		// remove punctuation between words such as commas, stops and so on
 		$data = self::stripPunctuation($data);
 		
 		$words = explode(' ', trim($data));
@@ -203,6 +206,10 @@ Class SearchIndex {
 			
 			// exclude words that are too short or too long
 			if(strlen($word) >= (int)Symphony::Configuration()->get('max-word-length', 'search_index') || self::strlen($word) < (int)Symphony::Configuration()->get('min-word-length', 'search_index')) {
+				continue;
+			}
+			
+			if(self::isStopWord($word)) {
 				continue;
 			}
 			
@@ -345,7 +352,12 @@ Class SearchIndex {
 	
 		// don't highlight short words
 		foreach($keywords as $i => $keyword) {
-			if (self::strlen($keyword) < 3) unset($keywords[$i]);
+			if (self::strlen($keyword) < (int)Symphony::Configuration()->get('min-word-length', 'search_index')) unset($keywords[$i]);
+		}
+		
+		// don't highlight stop words
+		foreach($keywords as $i => $keyword) {
+			if (self::isStopWord($keyword)) unset($keywords[$i]);
 		}
 
 		// Prepare text
@@ -695,8 +707,7 @@ Class SearchIndex {
 	public static function isStopWord($word) {
 		// load stopwords if not already loaded
 		if(is_null(self::$_stopwords)) {
-			self::$_stopwords = array('i', 'we', 'and', 'are', 'they', 'is', 'our', 'you', 'your');
-			//self::$_stopwords = array();
+			self::$_stopwords = explode("\n", file_get_contents(EXTENSIONS . '/search_index/lib/stop-words.txt'));
 		}
 		return in_array($word, self::$_stopwords);
 	}

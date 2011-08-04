@@ -217,7 +217,8 @@
 					
 					// append wildcard for LIKE
 					if($mode == 'LIKE') {
-						$prefix = $suffix = '%';
+						$prefix = '% ';
+						$suffix = '%';
 					}
 					// apply word boundary separator
 					if($mode == 'REGEXP') {
@@ -236,9 +237,9 @@
 						
 						// if the word can be stemmed, look for the word or the stem version
 						if ($do_stemming && ($keyword_stem != $keyword)) {
-							$sql_where .= "(index.data $mode '$prefix$keyword$suffix' OR index.data $mode '$prefix$keyword$suffix') AND ";
+							$sql_where .= "(CONCAT(' ', index.data) $mode '$prefix$keyword$suffix' OR index.data $mode '$prefix$keyword$suffix') AND ";
 						} else {
-							$sql_where .= "index.data $mode '$prefix$keyword$suffix' AND ";
+							$sql_where .= "CONCAT(' ', index.data) $mode '$prefix$keyword$suffix' AND ";
 						}
 						
 						// if this keyword exists in the entry contents, add 1 to "keywords_matched"
@@ -384,6 +385,7 @@
 			$result->setAttributeArray(
 				array(
 					'keywords' => General::sanitize($keywords),
+					'keywords-synonyms' => General::sanitize($param_keywords),
 					'sort' => General::sanitize($param_sort),
 					'direction' => General::sanitize($param_direction),
 				)
@@ -495,7 +497,7 @@
 				));
 				
 				// has this search (keywords+sections) already been logged this session?
-				$already_logged = Symphony::Database()->fetch(sprintf(
+				$already_logged = Symphony::Database()->fetchVar('id', 0, sprintf(
 					"SELECT
 					 	id
 					FROM

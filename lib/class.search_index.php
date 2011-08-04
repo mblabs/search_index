@@ -150,6 +150,8 @@ Class SearchIndex {
 			$proc = new XsltProcess();
 			$data = $proc->process($entry_xml->asXML(), file_get_contents(EXTENSIONS . '/search_index/lib/parse-entry.xsl'));
 			$data = trim($data);
+			$data = preg_replace("/\n/m", ' ', $data); // remove new lines
+			$data = preg_replace("/[\s]{2,}/m", ' ', $data); // remove muliple spaces
 			self::saveEntryIndex($entry_id, $section, $data);
 		}
 
@@ -223,7 +225,7 @@ Class SearchIndex {
 				preg_match("/=/", $word) || 
 				// start with $, probably an XSLT param
 				preg_match("/^\\$/", $word) || 
-				// start with a /, probably XPath
+				// start with /, probably XPath
 				preg_match("/^\//", $word) || 
 				// probably PHP
 				preg_match("/->/", $word) || 
@@ -335,7 +337,7 @@ Class SearchIndex {
 	public static function parseExcerpt($keywords, $text) {
 	
 		$text = trim($text);
-		$text = preg_replace("/\n/", ' ', $text);
+		$text = preg_replace("/\n/m", ' ', $text);
 		$text = preg_replace("/[\s]{2,}/m", ' ', $text);
 		
 		// remove punctuation for highlighting
@@ -450,10 +452,13 @@ Class SearchIndex {
 		foreach ($newranges as $from => $to) {
 			$out[] = self::substr($text, $from, $to - $from);
 		}
+		
 		$text = (isset($newranges[0]) ? '' : $elipsis) . implode($elipsis, $out) . $elipsis;
 
 		// Highlight keywords. Must be done at once to prevent conflicts ('strong' and '<strong>').
-		$text = preg_replace('/'. $boundary .'('. implode('|', $keywords) .')'. $boundary .'/iu', '__SEARCH_INDEX_START_HIGHLIGHT__\0__SEARCH_INDEX_END_HIGHLIGHT__', $text);
+		$boundary_prefix = '';
+		$boundary_suffix = '(.){0,}?\s';
+		$text = preg_replace('/'. $boundary_prefix .'('. implode('|', $keywords) .')'. $boundary_suffix .'/iu', '__SEARCH_INDEX_START_HIGHLIGHT__\0__SEARCH_INDEX_END_HIGHLIGHT__', $text);
 	
 		$text = preg_replace("/[\s]{2,}/m", ' ', $text);
 		$text = trim($text);
@@ -722,6 +727,5 @@ Class SearchIndex {
 		$phrase = strip_punctuation(implode(' ', $phrase));
 		return $phrase;
 	}
-	
 	
 }

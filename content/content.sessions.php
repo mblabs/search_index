@@ -1,6 +1,7 @@
 <?php
 	
 	require_once(EXTENSIONS . '/search_index/lib/class.search_index_administrationpage.php');
+	require_once(EXTENSIONS . '/search_index/lib/phpbrowscap/browscap/Browscap.php');
 
 	class contentExtensionSearch_IndexSessions extends SearchIndex_AdministrationPage {
 		
@@ -93,9 +94,12 @@
 			
 			// append table headings
 			$tableHead[] = $this->__buildColumnHeader(__('Date'), 'date', 'desc');
-			$tableHead[] = $this->__buildColumnHeader(__('Query'), 'keywords', 'desc');
+			$tableHead[] = array(__('Query'), 'keywords');
 			$tableHead[] = $this->__buildColumnHeader(__('Results'), 'results', 'desc');
 			$tableHead[] = $this->__buildColumnHeader(__('Depth'), 'depth', 'desc');
+			$tableHead[] = array(__('Session ID'));
+			$tableHead[] = array(__('IP Address'));
+			$tableHead[] = array(__('Browser'));
 			
 			if (!is_array($rows) or empty($rows)) {
 				$tableBody = array(
@@ -105,21 +109,22 @@
 			
 			else {
 				
+				$browscap = new Browscap(CACHE);
+				
 				$alt = FALSE;
 				foreach ($rows as $row) {
 					
-					$r = array();
-					$r[] = Widget::TableData($row['session_id'], 'inactive');
-					$r[] = Widget::TableData($row['ip'], 'inactive');
-					$r[] = Widget::TableData($row['user_agent'], 'inactive', NULL, 6);
-					$tableBody[] = Widget::TableRow($r, 'session-meta ' . ($alt ? 'alt' : ''));
+					if(!empty($row['user_agent'])) {
+						$browser = $browscap->getBrowser($row['user_agent']);
+						$browser_string = sprintf('%s %s (%s)', $browser->Browser, $browser->MajorVer, $browser->Platform);
+					}
 					
 					$searches = SearchIndexLogs::getSessionSearches($row['session_id']);
 					
 					foreach($searches as $i => $search) {
 						
 						$r = array();
-						
+						//$r[] = Widget::TableData('', NULL, NULL, 3);
 						$r[] = Widget::TableData(
 							DateTimeObj::get(
 								__SYM_DATETIME_FORMAT__,
@@ -136,11 +141,16 @@
 						}
 						
 						$r[] = Widget::TableData($keywords, $keywords_class . ' keywords');
-						
 						$r[] = Widget::TableData($search['results'], 'results');
 						$r[] = Widget::TableData($search['page'], 'depth');
 						
-						$r[] = Widget::TableData('', NULL, NULL, 4);
+						if($i == 0) {
+							$r[] = Widget::TableData($row['session_id'], 'inactive');
+							$r[] = Widget::TableData(empty($row['ip']) ? __('None') : $row['ip'], 'inactive');
+							$r[] = Widget::TableData(empty($browser_string) ? __('None') : $browser_string, 'inactive');
+						} else {
+							$r[] = Widget::TableData('', NULL, NULL, 3);
+						}
 
 						$tableBody[] = Widget::TableRow($r, 'search ' . ($alt ? 'alt' : '') . ($i == (count($searches) - 1) ? ' last' : ''));
 						

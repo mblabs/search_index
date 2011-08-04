@@ -265,12 +265,6 @@
 					$sql_where = preg_replace("/ OR $/", "", $sql_where);
 					$sql_where = preg_replace("/ AND $/", "", $sql_where);
 					
-					// if ordering by score, use a function of the two columns
-					// we are calculating rather than just "score"
-					if(preg_match("/^score/", $sql_order_by)) {
-						$sql_order_by = preg_replace("/^score/", "(keywords_matched * score)", $sql_order_by);
-					}
-					
 					$sql_entries = sprintf(
 						"SELECT
 							SQL_CALC_FOUND_ROWS
@@ -279,11 +273,8 @@
 							e.section_id as `section_id`,
 							UNIX_TIMESTAMP(e.creation_date) AS `creation_date`,
 							(
-								%1\$s
-							) AS keywords_matched,
-							(
-								(%2\$s)
-								*
+								(%1\$s) * 
+								(%2\$s) *
 								CASE
 									%3\$s
 									ELSE 1
@@ -310,6 +301,7 @@
 						max(0, ($this->dsParamSTARTPAGE - 1) * $this->dsParamLIMIT),
 						(int)$this->dsParamLIMIT
 					);
+					//echo $sql_entries;die;
 					
 					$sql_count = sprintf(
 						"SELECT
@@ -336,11 +328,9 @@
 			// we have search words, check for soundalikes
 			if(count($keywords_boolean['include-words-all']) > 0) {
 				
-				require_once(EXTENSIONS . '/search_index/lib/strip_punctuation.php');
-				
 				$include_words_all = array();
 				foreach($keywords_boolean['include-words-all'] as $word) {
-					$include_words_all[] = strip_punctuation($word);
+					$include_words_all[] = SearchIndex::stripPunctuation($word);
 				}
 				$include_words_all = array_unique($include_words_all);
 				

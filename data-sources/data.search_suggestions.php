@@ -101,24 +101,6 @@
 				(count($sections) > 0) ? sprintf('AND `entry`.section_id IN (%s)', implode(',', array_keys($sections))) : NULL,
 				$sort
 			);
-			
-			echo $sql_words;die;
-			
-			$sql_searches = sprintf(
-				"SELECT
-					`keywords` AS `keyword`,
-					COUNT(`keywords`) AS `frequency`
-				FROM
-					`tbl_search_index_logs`
-				WHERE
-					`keywords` LIKE '%s%%'
-					AND `use_as_suggestion` = 'yes'
-				GROUP BY `keyword`
-				ORDER BY %s
-				LIMIT 0, 20",
-				Symphony::Database()->cleanValue($keywords),
-				$sort
-			);
 
 		
 		// Run!
@@ -126,22 +108,25 @@
 			
 			// get our entries, returns entry IDs
 			$words = Symphony::Database()->fetch($sql_words);
-			$searches = Symphony::Database()->fetch($sql_searches);
+			$autosuggest = SearchIndex::getQuerySuggestions();
 			
-			foreach($searches as $search) {
+			foreach($autosuggest as $word) {
+				if(!preg_match("/^$keywords/", $word)) continue;
 				$result->appendChild(
 					new XMLElement(
 						'word',
-						General::sanitize($search['keyword']),
+						General::sanitize($word),
 						array(
-							'frequency' => $search['frequency'],
-							'handle' => Lang::createHandle($search['keyword'])
+							'best-bet' => 'yes',
+							'handle' => Lang::createHandle($word)
 						)
 					)
 				);
 			}
 			
 			foreach($words as $word) {
+				// if already matched in the autosuggest output, do not repeat here
+				if(preg_match("/^$keywords/", $word['keyword'])) continue;
 				$result->appendChild(
 					new XMLElement(
 						'word',

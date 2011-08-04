@@ -10,6 +10,8 @@ Class SearchIndex {
 	
 	private static $_session_id = NULL;
 	
+	private static $_stopwords = NULL;
+	
 	/**
 	* Set up static members
 	*/
@@ -177,8 +179,6 @@ Class SearchIndex {
 	
 	public function saveEntryKeywords($entry_id, $data) {
 		
-		require_once(EXTENSIONS . '/search_index/lib/strip_punctuation.php');
-		
 		// remove as much crap as possible
 		$data = strip_tags($data);
 		$data = strtolower($data);
@@ -189,7 +189,7 @@ Class SearchIndex {
 
 		$data = preg_replace('~&#x([0-9a-f]+);~ei', 'chr(hexdec("\\1"))', $data);
 	    $data = preg_replace('~&#([0-9]+);~e', 'chr("\\1")', $data);
-		$data = strip_punctuation($data);
+		$data = self::stripPunctuation($data);
 		
 		$words = explode(' ', trim($data));
 		$words = array_unique($words);
@@ -332,8 +332,7 @@ Class SearchIndex {
 		$text = preg_replace("/[\s]{2,}/m", ' ', $text);
 		
 		// remove punctuation for highlighting
-		require_once(EXTENSIONS . '/search_index/lib/strip_punctuation.php');
-		$keywords = strip_punctuation($keywords);
+		$keywords = self::stripPunctuation($keywords);
 	
 		$string_length = (Symphony::Configuration()->get('excerpt-length', 'search_index')) ? Symphony::Configuration()->get('excerpt-length', 'search_index') : 200;
 		$between_start = $string_length / 2;
@@ -477,7 +476,6 @@ Class SearchIndex {
 	* @param array $synonyms
 	*/
 	public static function saveSynonyms($synonyms) {
-		self::assert();
 		Symphony::Configuration()->set('synonyms', stripslashes(serialize($synonyms)), 'search_index');
 		Symphony::Engine()->saveConfig();
 	}
@@ -586,7 +584,11 @@ Class SearchIndex {
 		}
 
 		foreach ($tmp_include_words as $word) {
+			// exclude words that are too short or too long
 			if(self::strlen($word) >= (int)Symphony::Configuration()->get('max-word-length', 'search_index') || self::strlen($word) < (int)Symphony::Configuration()->get('min-word-length', 'search_index')) {
+				continue;
+			}
+			if(self::isStopWord($word)) {
 				continue;
 			}
 			$boolean_keywords['include-word'][] = $word;
@@ -686,12 +688,29 @@ Class SearchIndex {
 	* @param array $synonyms
 	*/
 	public static function saveQuerySuggestions($suggestions) {
-		self::assert();
 		Symphony::Configuration()->set('autosuggestions', stripslashes(serialize($suggestions)), 'search_index');
 		Symphony::Engine()->saveConfig();
 	}
 	
+	public static function isStopWord($word) {
+		// load stopwords if not already loaded
+		if(is_null(self::$_stopwords)) {
+			self::$_stopwords = array('i', 'we', 'and', 'are', 'they', 'is', 'our', 'you', 'your');
+			//self::$_stopwords = array();
+		}
+		return in_array($word, self::$_stopwords);
+	}
 	
+	public static function stripPunctuation($phrase) {
+		require_once(EXTENSIONS . '/search_index/lib/strip_punctuation.php');
+		// proptietary strip, returns string
+		$phrase = strip_punctuation($phrase);
+		// php strip, returns array
+		$phrase = str_word_count(strtolower($phrase), 1);
+		// run through proprietary again, just for good measure
+		$phrase = strip_punctuation(implode(' ', $phrase));
+		return $phrase;
+	}
 	
 	
 }

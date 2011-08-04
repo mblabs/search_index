@@ -117,6 +117,8 @@
 					if(!empty($row['user_agent'])) {
 						$browser = $browscap->getBrowser($row['user_agent']);
 						$browser_string = sprintf('%s %s (%s)', $browser->Browser, $browser->MajorVer, $browser->Platform);
+					} else {
+						$browser_string = '';
 					}
 					
 					$searches = SearchIndexLogs::getSessionSearches($row['session_id']);
@@ -140,14 +142,14 @@
 							$keywords_class = 'inactive';
 						}
 						
-						$r[] = Widget::TableData($keywords, $keywords_class . ' keywords');
+						$r[] = Widget::TableData(stripslashes($keywords), $keywords_class . ' keywords');
 						$r[] = Widget::TableData($search['results'], 'results');
 						$r[] = Widget::TableData($search['page'], 'depth');
 						
 						if($i == 0) {
 							$r[] = Widget::TableData($row['session_id'], 'inactive');
 							$r[] = Widget::TableData(empty($row['ip']) ? __('None') : $row['ip'], 'inactive');
-							$r[] = Widget::TableData(empty($browser_string) ? __('None') : $browser_string, 'inactive');
+							$r[] = Widget::TableData(empty($browser_string) ? __('None') : '<span title="'.$row['user_agent'].'">' . $browser_string . '</span>', 'inactive');
 						} else {
 							$r[] = Widget::TableData('', NULL, NULL, 3);
 						}

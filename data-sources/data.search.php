@@ -398,7 +398,6 @@
 				$index_query_counts[] = (int)$section['id'];
 			}
 			
-			//$search_sections
 			// append list of sections
 			$sections_xml = new XMLElement('sections');
 			foreach($indexed_sections as $section) {

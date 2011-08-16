@@ -121,6 +121,7 @@
 			
 			// should we apply word stemming?
 			$do_stemming = ($config->{'stem-words'} == 'yes') ? TRUE : FALSE;
+			if($do_stemming) require_once(EXTENSIONS . '/search_index/lib/porterstemmer/class.porterstemmer.php');
 			
 			// replace synonyms
 			$keywords = SearchIndex::applySynonyms($param_keywords);

@@ -140,6 +140,7 @@
 			$mode = strtoupper($mode);
 			
 			$do_stemming = (Symphony::Configuration()->get('stem-words', 'search_index') == 'yes') ? TRUE : FALSE;
+			if($do_stemming) require_once(EXTENSIONS . '/search_index/lib/porterstemmer/class.porterstemmer.php');
 			
 			$keywords = SearchIndex::applySynonyms($data);
 			$keywords_boolean = SearchIndex::parseKeywordString($keywords, $do_stemming);

@@ -541,7 +541,7 @@ Class SearchIndex {
 	
 	public static function parseKeywordString($keywords, $stem_words=FALSE) {
 		
-		if($stem_words) require_once(EXTENSIONS . '/search_index/lib/class.porterstemmer.php');
+		if($stem_words) require_once(EXTENSIONS . '/search_index/lib/porterstemmer/class.porterstemmer.php');
 		
 		// we will store the various keywords under these categories
 		$boolean_keywords = array(

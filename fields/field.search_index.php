@@ -184,7 +184,7 @@
 						
 						// if the word can be stemmed, look for the word or the stem version
 						if ($do_stemming && ($keyword_stem != $keyword)) {
-							$sql_where .= "(CONCAT(' ', search_index.data) $mode '$prefix$keyword$suffix' OR index.data $mode '$prefix$keyword$suffix') AND ";
+							$sql_where .= "(CONCAT(' ', search_index.data) $mode '$prefix$keyword$suffix' OR search_index.data $mode '$prefix$keyword$suffix') AND ";
 						} else {
 							$sql_where .= "CONCAT(' ', search_index.data) $mode '$prefix$keyword$suffix' AND ";
 						}

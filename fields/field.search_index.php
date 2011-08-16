@@ -163,7 +163,8 @@
 					
 					// append wildcard for LIKE
 					if($mode == 'LIKE') {
-						$prefix = $suffix = '%';
+						$prefix = '% ';
+						$suffix = '%';
 					}
 					// apply word boundary separator
 					if($mode == 'REGEXP') {
@@ -183,9 +184,9 @@
 						
 						// if the word can be stemmed, look for the word or the stem version
 						if ($do_stemming && ($keyword_stem != $keyword)) {
-							$sql_where .= "(search_index.data $mode '$prefix$keyword$suffix' OR search_index.data $mode '$prefix$keyword$suffix') AND ";
+							$sql_where .= "(CONCAT(' ', search_index.data) $mode '$prefix$keyword$suffix' OR index.data $mode '$prefix$keyword$suffix') AND ";
 						} else {
-							$sql_where .= "search_index.data $mode '$prefix$keyword$suffix' AND ";
+							$sql_where .= "CONCAT(' ', search_index.data) $mode '$prefix$keyword$suffix' AND ";
 						}
 					}
 					
@@ -193,7 +194,7 @@
 					foreach($keywords_boolean['exclude-words-all'] as $keyword) {
 						$has_keywords = TRUE;
 						$keyword = Symphony::Database()->cleanValue($keyword);
-						$sql_where .= "search_index.data NOT $mode '$prefix$keyword$suffix' AND ";
+						$sql_where .= "CONCAT(' ', search_index.data) NOT $mode '$prefix$keyword$suffix' AND ";
 					}
 					
 					// trim unnecessary boolean conditions from SQL

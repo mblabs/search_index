@@ -377,19 +377,11 @@
 		// Run search SQL!
 		/*-----------------------------------------------------------------------*/
 			
+			$t = microtime();
+			
 			// get our entries, returns entry IDs
 			$entries = Symphony::Database()->fetch($sql_entries);
 			$total_entries = Symphony::Database()->fetchVar('total', 0, 'SELECT FOUND_ROWS() AS `total`');
-			
-			// append input values
-			$result->setAttributeArray(
-				array(
-					'keywords' => General::sanitize($keywords),
-					'keywords-synonyms' => General::sanitize($param_keywords),
-					'sort' => General::sanitize($param_sort),
-					'direction' => General::sanitize($param_direction),
-				)
-			);
 			
 			// append pagination
 			$result->appendChild(
@@ -478,6 +470,19 @@
 				
 				$result->appendChild($entry_xml);
 			}
+			
+			$search_time = microtime() - $t;
+			
+			// append input values
+			$result->setAttributeArray(
+				array(
+					'keywords' => General::sanitize($keywords),
+					'keywords-synonyms' => General::sanitize($param_keywords),
+					'sort' => General::sanitize($param_sort),
+					'direction' => General::sanitize($param_direction),
+					'time' => round($t, 3) . 's'
+				)
+			);
 			
 			// send entry IDs as Output Parameterss
 			$param_pool['ds-' . $this->dsParamROOTELEMENT] = $param_output;

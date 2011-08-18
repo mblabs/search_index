@@ -10,14 +10,30 @@
 		protected $sort = NULL;
 		protected $pagination = NULL;
 		
-		public function view() {
+		protected $uri = NULL;
+		protected $id = NULL;
+		protected $mode = NULL;
+		
+		public function __construct(&$parent){
+			$this->uri = URL . '/symphony/extension/search_index';
+			parent::__construct($parent);
+		}
+		
+		public function build($context) {
+			$this->mode = $context[0];
+			$this->id = $context[1];
+			parent::build($context);
+		}
+		
+		public function view($call_parent=TRUE) {
 			$this->addElementToHead(new XMLElement(
 				'script',
 				"Symphony.Context.add('search_index', " . json_encode(Symphony::Configuration()->get('search_index')) . ")",
 				array('type' => 'text/javascript')
 			), 99);
 			$this->addStylesheetToHead(URL . '/extensions/search_index/assets/search_index.css', 'screen', 100);
-			$this->addScriptToHead(URL . '/extensions/search_index/assets/search_index.js', 100);
+			$this->addScriptToHead(URL . '/extensions/search_index/assets/search_index.js', 101);
+			if($call_parent) parent::view();
 		}
 		
 		protected function __buildPagination($pagination) {

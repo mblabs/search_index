@@ -26,6 +26,8 @@
 			
 			try {
 				
+				// Search Index field for adding to sections: adds keyword
+				// searching functionality as a data source filter
 				Symphony::Database()->query(
 				  "CREATE TABLE IF NOT EXISTS `tbl_fields_search_index` (
 					  `id` int(11) unsigned NOT NULL auto_increment,
@@ -33,8 +35,20 @@
 				  PRIMARY KEY  (`id`),
 				  KEY `field_id` (`field_id`))");
 				
+				// meta data about each index, which sections, fields and filters
 				Symphony::Database()->query(
-					"CREATE TABLE IF NOT EXISTS `tbl_search_index` (
+					"CREATE TABLE `tbl_search_index_indexes` (
+					  `section_id` int(11) NOT NULL,
+					  `included_fields` varchar(255) NOT NULL DEFAULT '',
+					  `weighting` int(11) DEFAULT NULL,
+					  `filters` text,
+					  UNIQUE KEY `section_id` (`section_id`)
+					) ENGINE=MyISAM DEFAULT CHARSET=utf8;"
+				);
+				
+				// the full indexed text of each entry
+				Symphony::Database()->query(
+					"CREATE TABLE IF NOT EXISTS `tbl_search_index_data` (
 					  `id` int(11) NOT NULL auto_increment,
 					  `entry_id` int(11) NOT NULL,
 					  `section_id` int(11) NOT NULL,
@@ -45,21 +59,7 @@
 					) ENGINE=MyISAM DEFAULT CHARSET=utf8"
 				);
 				
-				Symphony::Database()->query(
-					"CREATE TABLE IF NOT EXISTS `tbl_search_index_logs` (
-					  `id` int(11) NOT NULL auto_increment,
-					  `date` datetime NOT NULL,
-					  `keywords` varchar(255) default NULL,
-					  `keywords_manipulated` varchar(255) default NULL,				  
-					  `sections` varchar(255) default NULL,
-					  `page` int(11) NOT NULL,
-					  `results` int(11) default NULL,
-					  `session_id` varchar(255) default NULL,
-					  PRIMARY KEY  (`id`),
-					  FULLTEXT KEY `keywords` (`keywords`)
-					) ENGINE=MyISAM DEFAULT CHARSET=utf8;"
-				);
-				
+				// unique keywords parsed from indexed text
 				Symphony::Database()->query(
 					"CREATE TABLE IF NOT EXISTS `tbl_search_index_keywords` (
 					  `id` int(11) NOT NULL auto_increment,
@@ -69,6 +69,7 @@
 					) ENGINE=MyISAM DEFAULT CHARSET=utf8;"
 				);
 				
+				// mapping of unique keywords to each entry, with frequency of occurences
 				Symphony::Database()->query(
 					"CREATE TABLE IF NOT EXISTS `tbl_search_index_entry_keywords` (
 					  `entry_id` int(11) default NULL,
@@ -79,9 +80,59 @@
 					) ENGINE=MyISAM DEFAULT CHARSET=utf8;"
 				);
 				
+				// synonym conversions that occur at search run time
+				Symphony::Database()->query(
+					"CREATE TABLE `tbl_search_index_synonyms` (
+					  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+					  `word` varchar(255) DEFAULT NULL,
+					  `synonyms` text,
+					  PRIMARY KEY (`id`)
+					) ENGINE=MyISAM DEFAULT CHARSET=utf8;"
+				);
+				
+				// log of public searches
+				Symphony::Database()->query(
+					"CREATE TABLE `tbl_search_index_logs` (
+					  `id` varchar(255) NOT NULL DEFAULT '',
+					  `date` datetime NOT NULL,
+					  `keywords` varchar(255) DEFAULT NULL,
+					  `sections` varchar(255) DEFAULT NULL,
+					  `page` int(11) NOT NULL,
+					  `results` int(11) DEFAULT NULL,
+					  `session_id` varchar(255) DEFAULT NULL,
+					  `user_agent` varchar(255) DEFAULT NULL,
+					  `ip` varchar(255) DEFAULT NULL,
+					  PRIMARY KEY (`id`),
+					  UNIQUE KEY `id` (`id`),
+					  KEY `keywords` (`keywords`),
+					  KEY `date` (`date`),
+					  KEY `session_id` (`session_id`)
+					) ENGINE=MyISAM DEFAULT CHARSET=utf8;"
+				);
+				
 			}
 			catch (Exception $e){
 				#var_dump($e);die;
+				return FALSE;
+			}
+			
+			return TRUE;
+			
+		}
+		
+		private function dropTables($exclude=array()) {
+			
+			try {
+				
+				if(!in_array('tbl_fields_search_index', $exclude)) Symphony::Database()->query("DROP TABLE `tbl_fields_search_index`");
+				if(!in_array('tbl_search_index_indexes', $exclude)) Symphony::Database()->query("DROP TABLE `tbl_search_index_indexes`");
+				if(!in_array('tbl_search_index_data', $exclude)) Symphony::Database()->query("DROP TABLE `tbl_search_index_data`");
+				if(!in_array('tbl_search_index_keywords', $exclude)) Symphony::Database()->query("DROP TABLE `tbl_search_index_keywords`");
+				if(!in_array('tbl_search_index_entry_keywords', $exclude)) Symphony::Database()->query("DROP TABLE `tbl_search_index_entry_keywords`");
+				if(!in_array('tbl_search_index_synonyms', $exclude)) Symphony::Database()->query("DROP TABLE `tbl_search_index_synonyms`");
+				if(!in_array('tbl_search_index_logs', $exclude)) Symphony::Database()->query("DROP TABLE `tbl_search_index_logs`");
+				
+			} catch(Exception $ex) {
 				return FALSE;
 			}
 			
@@ -135,24 +186,62 @@
 		
 		public function update($previousVersion){
 			
-			if(version_compare($previousVersion, '0.6', '<')){
+			if(version_compare($previousVersion, '0.6', '<')) {
 				Symphony::Database()->query("ALTER TABLE `tbl_search_index_logs` ADD `keywords_manipulated` varchar(255) default NULL");
 			}
 			
 			// lower versions get the full upgrade treatment, new tables and config
 			// should retain "indexes" and "synonyms" in config though.
-			if(version_compare($previousVersion, '0.7.1', '<')){
+			if(version_compare($previousVersion, '0.7.1', '<')) {
 				$this->install();
 			}
 			
-			if(version_compare($previousVersion, '0.9.1', '<')){
+			if(version_compare($previousVersion, '0.9.1', '<')) {
 				Symphony::Configuration()->set('return-count-for-each-section', 'yes', 'search_index');
 				Administration::instance()->saveConfig();
-				Symphony::Database()->query("ALTER TABLE `tbl_search_index_logs` ADD `use_as_suggestion` enum('yes','no') DEFAULT 'no'");
-				Symphony::Database()->query("ALTER TABLE `tbl_search_index_logs` ADD `user_agent` varchar(255) DEFAULT NULL");
 			}
 			
+			if(version_compare($previousVersion, '1.0', '<')) {
+				
+				// remove all tables except for the field which can safely remain
+				$this->dropTables(array('tbl_fields_search_index'));
+				
+				// build the empty tables again
+				$this->createTables();
+				
+				// populate index meta data from config
+				$indexes = Symphony::Configuration()->get('indexes', 'search_index');
+				$indexes = preg_replace("/\\\/",'',$indexes);
+				$unserialised_indexes = unserialize($indexes);
+				if(!is_array($unserialised_indexes)) $unserialised_indexes = array();
+				
+				foreach($unserialised_indexes as $section_id => $index) {
+					SearchIndex::saveIndex(array(
+						'section_id' => $section_id,
+						'included_fields' => $index['fields'],
+						'weighting' => $index['weighting'],
+						'filters' => $index['filters']
+					));
+				}
+				
+				// populate synonyms from config
+				$synonyms = Symphony::Configuration()->get('synonyms', 'search_index');
+				$synonyms = preg_replace("/\\\/",'',$synonyms);
+				$unserialised_synonyms = unserialize($synonyms);
+				if(!is_array($unserialised_synonyms)) $unserialised_synonyms = array();
+				
+				foreach($unserialised_synonyms as $synonym) {
+					SearchIndex::saveSynonym(array(
+						'word' => $synonym['word'],
+						'synonyms' => $synonym['synonyms']
+					));
+				}
+				
+				Symphony::Configuration()->remove('indexes', 'search_index');
+				Symphony::Configuration()->remove('synonyms', 'search_index');
+				Administration::instance()->saveConfig();
 			
+			}
 			
 			return TRUE;
 		}
@@ -165,16 +254,8 @@
 			Symphony::Configuration()->remove('search_index');			
 			Administration::instance()->saveConfig();
 			
-			try{
-				Symphony::Database()->query("DROP TABLE `tbl_search_index`");
-				Symphony::Database()->query("DROP TABLE `tbl_fields_search_index`");
-				Symphony::Database()->query("DROP TABLE `tbl_search_index_logs`");
-				Symphony::Database()->query("DROP TABLE `tbl_search_index_keywords`");
-				Symphony::Database()->query("DROP TABLE `tbl_search_index_entry_keywords`");
-			}
-			catch(Exception $e){
-				return false;
-			}
+			$this->dropTables();
+			
 			return true;
 		}
 		
@@ -280,10 +361,10 @@
 		public function deleteEntryIndex($context) {
 			if (is_array($context['entry_id'])) {
 				foreach($context['entry_id'] as $entry_id) {
-					SearchIndex::deleteIndexByEntry($entry_id);
+					SearchIndex::deleteIndexedEntriesByEntry($entry_id);
 				}
 			} else {
-				SearchIndex::deleteIndexByEntry($context['entry_id']);
+				SearchIndex::deleteIndexedEntriesByEntry($context['entry_id']);
 			}
 		}
 		

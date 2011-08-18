@@ -6,7 +6,7 @@
 						
 		public function view() {
 			
-			parent::view();
+			parent::view(FALSE);
 			
 			// Get URL parameters, set defaults
 			/*-----------------------------------------------------------------------*/	
@@ -120,7 +120,7 @@
 					$r = array();
 					$r[] = Widget::TableData($rank, 'rank');
 					$r[] = Widget::TableData(
-						(empty($row['keywords']) ? __('None') : '<span class="suggestion '.(in_array(strtolower(trim($row['keywords'])), $autosuggestions) ? 'yes' : 'no').'"></span><span class="query">' . $row['keywords'] . '</span>'),
+						(empty($row['keywords']) ? __('None') : '<span title="'.__('Use this phrase as a search autosuggestion').'" class="suggestion '.(in_array(strtolower(trim($row['keywords'])), $autosuggestions) ? 'yes' : 'no').'"></span><span class="query">' . $row['keywords'] . '</span>'),
 						(empty($row['keywords']) ? 'inactive' : '')
 					);
 					$r[] = Widget::TableData($row['count'], 'count');

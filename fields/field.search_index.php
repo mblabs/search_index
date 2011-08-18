@@ -94,7 +94,7 @@
 		public function appendFormattedElement(XMLElement &$wrapper, $data, $encode = false, $mode = null, $entry_id = null) {
 			
 			$excerpt = Symphony::Database()->fetchVar('data', 0,
-				sprintf("SELECT data FROM tbl_search_index WHERE entry_id = %d LIMIT 0, 1", $entry_id)
+				sprintf("SELECT data FROM tbl_search_index_data WHERE entry_id = %d LIMIT 0, 1", $entry_id)
 			);
 			
 			$excerpt = SearchIndex::parseExcerpt($this->keywords_highlight, $excerpt);
@@ -131,7 +131,7 @@
 		function buildDSRetrivalSQL($data, &$joins, &$where, $andOperation=FALSE){
 			$field_id = $this->get('id');
 			
-			$joins .= " LEFT JOIN `tbl_search_index` AS search_index ON (e.id = search_index.entry_id) ";
+			$joins .= " LEFT JOIN `tbl_search_index_data` AS search_index ON (e.id = search_index.entry_id) ";
 			
 			if (!is_array($data)) $data = array($data);
 			if (is_array($data)) $data = implode(" ", $data);

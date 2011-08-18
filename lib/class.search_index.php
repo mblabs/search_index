@@ -24,22 +24,53 @@ Class SearchIndex {
 	/**
 	* Returns an array of all indexed sections and their filters
 	*/
-	public static function getIndexes() {
-		$indexes = Symphony::Configuration()->get('indexes', 'search_index');
-		$indexes = preg_replace("/\\\/",'',$indexes);
-		$unserialised = unserialize($indexes);
-		if(!is_array($unserialised)) return array();
-		return $unserialised;
+	public static function getIndexes($id=NULL) {
+		$indexes = Symphony::Database()->fetch(sprintf(
+			"SELECT
+				*
+			FROM
+				tbl_search_index_indexes
+			WHERE 1=1
+				%s",
+			(isset($id) ? (' AND section_id=' . $id) : '')
+		));
+		foreach($indexes as $i => $index) {
+			$indexes[$i]['included_fields'] = unserialize($index['included_fields']);
+			$indexes[$i]['filters'] = unserialize($index['filters']);
+		}
+		return $indexes;
 	}
 	
-	/**
-	* Save all index configurations to config
-	*
-	* @param array $indexes
-	*/
-	public static function saveIndexes($indexes) {
-		Symphony::Configuration()->set('indexes', stripslashes(serialize($indexes)), 'search_index');
-		Symphony::Engine()->saveConfig();
+	public static function getIndex($id) {
+		$indexes = self::getIndexes($id);
+		return reset($indexes);
+	}
+	
+	public static function saveIndex($index) {
+		// remove existing index
+		Symphony::Database()->query(sprintf(
+			"DELETE FROM tbl_search_index_indexes WHERE section_id=%d",
+			$index['section_id']
+		));
+		// insert index
+		Symphony::Database()->insert(
+			array(
+				'section_id' => $index['section_id'],
+				'included_fields' => serialize($index['included_fields']),
+				'weighting' => $index['weighting'],
+				'filters' => serialize($index['filters'])
+			),
+			'tbl_search_index_indexes'
+		);
+	}
+	
+	public static function deleteIndex($id) {
+		// remove existing index
+		Symphony::Database()->query(sprintf(
+			"DELETE FROM tbl_search_index_indexes WHERE section_id=%d",
+			$id
+		));
+		self::deleteIndexedEntriesBySection($id);
 	}
 	
 	/**
@@ -54,14 +85,10 @@ Class SearchIndex {
 		if (is_object($entry)) $entry = $entry->get('id');
 		if (is_object($section)) $section = $section->get('id');
 		
-		// get a list of sections that have indexing enabled
-		$indexed_sections = self::getIndexes();
+		$index = self::getIndex($section);
 		
 		// go no further if this section isn't being indexed
-		if (!isset($indexed_sections[$section])) return;
-		
-		// get the current section index config
-		$section_index = $indexed_sections[$section];
+		if (!isset($index)) return;
 		
 		// only pass entries through filters if we need to. If entry is being sent
 		// from the Re-Index AJAX it has already gone through filtering, so no need here
@@ -72,9 +99,9 @@ Class SearchIndex {
 				// modified from the core's class.datasource.php
 				
 				// create filters and build SQL required for each
-				if(is_array($section_index['filters']) && !empty($section_index['filters'])) {				
+				if(is_array($index['filters']) && !empty($index['filters'])) {				
 					
-					foreach($section_index['filters'] as $field_id => $filter){
+					foreach($index['filters'] as $field_id => $filter){
 
 						if((is_array($filter) && empty($filter)) || trim($filter) == '') continue;
 						
@@ -115,7 +142,7 @@ Class SearchIndex {
 
 			// run entry though filters
 			$entry_prefilter = self::$_entry_manager->fetch($entry, $section, 1, 0, self::$_where, self::$_joins, FALSE, FALSE);
-
+			
 			// if no entry found, it didn't pass the pre-filtering
 			if (empty($entry_prefilter)) return;
 
@@ -128,7 +155,7 @@ Class SearchIndex {
 		if (!is_array($entry)) $entry = array($entry);
 		
 		// create a DS and filter on System ID of the current entry to build the entry's XML			
-		self::$_entry_xml_datasource->dsParamINCLUDEDELEMENTS = $indexed_sections[$section]['fields'];
+		self::$_entry_xml_datasource->dsParamINCLUDEDELEMENTS = $index['included_fields'];
 		self::$_entry_xml_datasource->dsParamFILTERS['id'] = implode(',',$entry);
 		self::$_entry_xml_datasource->dsSource = (string)$section;
 		
@@ -144,7 +171,7 @@ Class SearchIndex {
 			$entry_id = (int)$entry_xml->attributes()->id;
 			
 			// delete existing index for this entry
-			self::deleteIndexByEntry($entry_id);
+			self::deleteIndexedEntriesByEntry($entry_id);
 			
 			// get text value of the entry
 			$proc = new XsltProcess();
@@ -154,7 +181,7 @@ Class SearchIndex {
 			$data = preg_replace("/[\s]{2,}/m", ' ', $data); // remove muliple spaces
 			self::saveEntryIndex($entry_id, $section, $data);
 		}
-
+		
 	}
 	
 	/**
@@ -172,7 +199,7 @@ Class SearchIndex {
 				'section_id' => $section_id,
 				'data' => $data
 			),
-			'tbl_search_index'
+			'tbl_search_index_data'
 		);
 		// stores the entry text keywords, one row per word
 		self::saveEntryKeywords($entry_id, $data);
@@ -275,10 +302,10 @@ Class SearchIndex {
 	*
 	* @param int $section_id
 	*/
-	public function deleteIndexBySection($section_id) {
+	public function deleteIndexedEntriesBySection($section_id) {
 		Symphony::Database()->query(
 			sprintf(
-				"DELETE FROM `tbl_search_index` WHERE `section_id` = %d",
+				"DELETE FROM `tbl_search_index_data` WHERE `section_id` = %d",
 				$section_id
 			)
 		);
@@ -289,10 +316,10 @@ Class SearchIndex {
 	*
 	* @param int $entry_id
 	*/
-	public function deleteIndexByEntry($entry_id) {
+	public function deleteIndexedEntriesByEntry($entry_id) {
 		Symphony::Database()->query(
 			sprintf(
-				"DELETE FROM `tbl_search_index` WHERE `entry_id` = %d",
+				"DELETE FROM `tbl_search_index_data` WHERE `entry_id` = %d",
 				$entry_id
 			)
 		);
@@ -475,29 +502,63 @@ Class SearchIndex {
 		$text = preg_quote($text, '/');
 	}
 	
-	/**
-	* Returns an array of all synonyms
-	*/
-	public static function getSynonyms() {
-		$synonyms = Symphony::Configuration()->get('synonyms', 'search_index');
-		//$indexes = preg_replace("/\\\/",'',$synonyms);
-		$synonyms = unserialize($synonyms);
-		if (!is_array($synonyms)) $synonyms = array();
-		uasort($synonyms, array('SearchIndex', 'sortAlphabetical'));
+	
+	
+	
+	
+	
+	public static function getSynonyms($id=NULL) {
+		$synonyms = Symphony::Database()->fetch(sprintf(
+			"SELECT
+				*
+			FROM
+				tbl_search_index_synonyms
+			WHERE 1=1
+				%s
+			ORDER BY
+				word ASC",
+			(isset($id) ? (' AND id=' . $id) : '')
+		));
 		return $synonyms;
 	}
 	
-	/**
-	* Save all synonyms to config
-	*
-	* @param array $synonyms
-	*/
-	public static function saveSynonyms($synonyms) {
-		Symphony::Configuration()->set('synonyms', stripslashes(serialize($synonyms)), 'search_index');
-		Symphony::Engine()->saveConfig();
+	public static function getSynonym($id) {
+		$synonyms = self::getSynonyms($id);
+		return reset($synonyms);
 	}
+	
+	public static function saveSynonym($synonym) {
+		// remove existing
+		if(isset($synonym['id'])) self::deleteSynonym($synonym['id']);
+		// insert index
+		Symphony::Database()->insert(
+			array(
+				'word' => $synonym['word'],
+				'synonyms' => $synonym['synonyms']
+			),
+			'tbl_search_index_synonyms'
+		);
+	}
+	
+	public static function deleteSynonym($id) {
+		Symphony::Database()->query(sprintf(
+			"DELETE FROM tbl_search_index_synonyms WHERE id=%d",
+			$id
+		));
+	}
+	
+	
+	
+	
+	
+
+	
+	
+	
+	
+	
 		
-	private static function sortAlphabetical($a, $b) {
+	public static function sortAlphabetical($a, $b) {
 		return strcmp($a['word'], $b['word']);
 	}
 	

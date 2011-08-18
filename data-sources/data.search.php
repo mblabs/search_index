@@ -78,6 +78,8 @@
 			}
 			
 			$indexes = SearchIndex::getIndexes();
+			$indexed_section_ids = array();
+			foreach($indexes as $index) $indexed_section_ids[] = $index['section_id'];
 		
 		
 		// Find valid sections to query
@@ -98,7 +100,7 @@
 			$indexed_sections = Symphony::Database()->fetch(
 				sprintf(
 					"SELECT `id`, `handle`, `name` FROM `tbl_sections` WHERE id IN (%s)",
-					implode(',', array_keys($indexes))
+					implode(',', array_values($indexed_section_ids))
 				)
 			);
 			
@@ -134,7 +136,7 @@
 		/*-----------------------------------------------------------------------*/
 
 			$sql_weighting = '';
-			foreach($indexes as $section_id => $index) {
+			foreach($indexes as $$index) {
 				$weight = isset($index['weighting']) ? $index['weighting'] : 2;
 				switch ($weight) {
 					case 0: $weight = 4; break;		// highest
@@ -143,7 +145,7 @@
 					case 3: $weight = 0.5; break;	// low
 					case 4: $weight = 0.25; break;	// lowest
 				}
-				$sql_weighting .= sprintf("WHEN e.section_id = %d THEN %d \n", $section_id, $weight);
+				$sql_weighting .= sprintf("WHEN e.section_id = %d THEN %d \n", $index['section_id'], $weight);
 			}
 		
 		
@@ -173,7 +175,7 @@
 								%3\$s						
 							) AS `score`
 						FROM
-							tbl_search_index as `index`
+							tbl_search_index_data as `index`
 							JOIN tbl_entries as `e` ON (index.entry_id = e.id)
 						WHERE
 							MATCH(index.data) AGAINST ('%4\$s' IN BOOLEAN MODE)
@@ -195,7 +197,7 @@
 						"SELECT 
 							COUNT(e.id) as `count`
 						FROM
-							tbl_search_index as `index`
+							tbl_search_index_data as `index`
 							JOIN tbl_entries as `e` ON (index.entry_id = e.id)
 						WHERE
 							MATCH(index.data) AGAINST ('%1\$s' IN BOOLEAN MODE)
@@ -284,7 +286,7 @@
 								%4\$s
 							) AS score
 						FROM
-							tbl_search_index as `index`
+							tbl_search_index_data as `index`
 							JOIN tbl_entries as `e` ON (index.entry_id = e.id)
 						WHERE
 							%5\$s
@@ -309,7 +311,7 @@
 						"SELECT
 							COUNT(e.id) as `count`
 						FROM
-							tbl_search_index as `index`
+							tbl_search_index_data as `index`
 							JOIN tbl_entries as `e` ON (index.entry_id = e.id)
 						WHERE
 							%1\$s
@@ -480,7 +482,7 @@
 					'keywords-synonyms' => General::sanitize($param_keywords),
 					'sort' => General::sanitize($param_sort),
 					'direction' => General::sanitize($param_direction),
-					'time' => round($t, 3) . 's'
+					'time' => round($search_time, 3) . 's'
 				)
 			);
 			

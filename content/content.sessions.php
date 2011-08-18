@@ -6,15 +6,15 @@
 	class contentExtensionSearch_IndexSessions extends SearchIndex_AdministrationPage {
 		
 		public function build($context) {
+			parent::build($context);
 			if (isset($_POST['filter']['keyword']) != '') {
 				redirect(Administration::instance()->getCurrentPageURL() . '?keywords=' . $_POST['keywords']);
 			}
-			parent::build($context);
 		}
 						
 		public function view() {
 			
-			parent::view();
+			parent::view(FALSE);
 			
 			// Get URL parameters, set defaults
 			/*-----------------------------------------------------------------------*/	

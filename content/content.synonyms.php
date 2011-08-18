@@ -1,34 +1,8 @@
 <?php
 	
-	require_once(TOOLKIT . '/class.administrationpage.php');
-	require_once(EXTENSIONS . '/search_index/lib/class.search_index.php');
+	require_once(EXTENSIONS . '/search_index/lib/class.search_index_administrationpage.php');
 	
-	class contentExtensionSearch_IndexSynonyms extends AdministrationPage {
-		protected $_errors = array();
-		
-		public function __construct(&$parent){
-			parent::__construct($parent);
-			
-			$this->_uri = URL . '/symphony/extension/search_index';
-			
-			$this->_synonyms = SearchIndex::getSynonyms();
-			$this->_synonym = NULL;
-			$this->_hash = NULL;
-		}
-		
-		public function build($context) {
-			$this->__prepareEdit($context);		
-			parent::build($context);
-		}
-		
-		private function __setContext($hash) {
-			$this->_hash = $hash;
-			$this->_synonym = $this->_synonyms[$hash];
-		}
-				
-		public function __prepareEdit($context) {
-			$this->__setContext($context[1]);
-		}
+	class contentExtensionSearch_IndexSynonyms extends SearchIndex_AdministrationPage {
 		
 		public function __actionIndex() {
 			$checked = @array_keys($_POST['items']);
@@ -36,113 +10,39 @@
 			if (is_array($checked) and !empty($checked)) {
 				switch ($_POST['with-selected']) {
 					case 'delete':
-						foreach ($checked as $hash) {							
-							$this->__setContext($hash);							
-							unset($this->_synonyms[$hash]);
+						foreach ($checked as $id) {
+							SearchIndex::deleteSynonym($id);
 						}
-						SearchIndex::saveSynonyms($this->_synonyms);
-						redirect("{$this->_uri}/synonyms/");
-						break;
+						redirect("{$this->uri}/synonyms/");
+					break;
 				}
 			}
 		}
 		
-		public function __actionEdit() {
-			
-			$synonym = $_POST['synonym'];
-			
-			// remove existing instance of hash
-			if($synonym['hash'] != '') unset($this->_synonyms[$synonym['hash']]);
-			
-			$this->_synonyms[sha1($synonym['word'])] = array(
-				'word' => $synonym['word'],
-				'synonyms' => $synonym['synonyms']
-			);
-			
-			SearchIndex::saveSynonyms($this->_synonyms);
-			
-			redirect("{$this->_uri}/synonyms/");
-		}
-		
-		public function __viewEdit() {
-			$this->addStylesheetToHead(URL . '/extensions/search_index/assets/search_index.css', 'screen', 100);
-			$this->addScriptToHead(URL . '/extensions/search_index/assets/search_index.js', 101);
-
-			$this->setPageType('form');
-			$this->setTitle(__('Symphony') . ' &ndash; ' . __('Search Indexes'));
-			$this->appendSubheading(__('Search Index') . " &rsaquo; <a href=\"{$this->_uri}/synonyms/\">" . __('Synonyms') . "</a>" . (!is_null($this->_synonym) ? ' <span class="meta">' . $this->_synonym['word'] . '</span>' : ''));
-			
-			$fieldset = new XMLElement('fieldset');
-			$fieldset->setAttribute('class', 'settings');
-			$fieldset->appendChild(new XMLElement('legend', __('Replacement word')));
-			$p = new XMLElement('p', __('Matching synonyms will be replaced with this word.'));
-			$p->setAttribute('class', 'help');
-			$fieldset->appendChild($p);
-						
-			$label = Widget::Label(__('Word'));
-			$label->appendChild(Widget::Input(
-				'synonym[word]',
-				$this->_synonym['word']
-			));
-			$fieldset->appendChild($label);
-			$fieldset->appendChild(new XMLElement('p', __('e.g. United Kingdom'), array('class'=>'help')));
-			
-			$this->Form->appendChild($fieldset);
-			
-			$fieldset = new XMLElement('fieldset');
-			$fieldset->setAttribute('class', 'settings');
-			$fieldset->appendChild(new XMLElement('legend', __('Synonyms')));
-			$p = new XMLElement('p', __('These words will be replaced with the word above. Separate multiple words with commas.'));
-			$p->setAttribute('class', 'help');
-			$fieldset->appendChild($p);
-						
-			$label = Widget::Label(__('Synonyms'));
-			$label->appendChild(Widget::Textarea(
-				'synonym[synonyms]',
-				5, 40,
-				$this->_synonym['synonyms']
-			));
-			$fieldset->appendChild($label);
-			$fieldset->appendChild(new XMLElement('p', __('e.g. UK, Great Britain, GB'), array('class'=>'help')));
-			
-			$this->Form->appendChild(new XMLElement('input', NULL, array('type'=>'hidden','name'=>'synonym[hash]','value'=>$this->_hash)));
-			
-			$this->Form->appendChild($fieldset);
-			
-			$div = new XMLElement('div');
-			$div->setAttribute('class', 'actions');
-			$div->appendChild(
-				Widget::Input('action[save]',
-					__('Save Changes'),
-					'submit', array(
-						'accesskey'		=> 's'
-					)
-				)
-			);
-						
-			$this->Form->appendChild($div);
+		public function view() {
+			parent::view();
+			$this->setTitle(__('Symphony') . ' &ndash; ' . __('Search Index') . ' &ndash; ' . __('Synonyms'));
 		}
 		
 		public function __viewIndex() {
+			
 			$this->setPageType('table');
-			$this->setTitle(__('Symphony') . ' &ndash; ' . __('Search Indexes'));
 			
 			$this->appendSubheading(
-				__('Search Index') . " &rsaquo; " . __('Synonyms') . 
-				Widget::Anchor(__('Create New'), Administration::instance()->getCurrentPageURL().'edit/', __('Create New'), 'create button')->generate()
+				__('Search Index') . ' &rsaquo; ' . __('Synonyms') . 
+				Widget::Anchor(__('Create New'), Administration::instance()->getCurrentPageURL().'new/', __('Create New'), 'create button')->generate()
 			);
 			$this->Form->appendChild(new XMLElement('p', __('Configure synonym expansion, so that common misspellings or variations of phrases can be normalised to a single phrase.'), array('class' => 'intro')));
-			
-			$this->addStylesheetToHead(URL . '/extensions/search_index/assets/search_index.css', 'screen', 100);
-			$this->addScriptToHead(URL . '/extensions/search_index/assets/search_index.js', 100);
-			
+						
 			$tableHead = array();
 			$tableBody = array();
 			
 			$tableHead[] = array(__('Word'), 'col');
 			$tableHead[] = array(__('Synonyms'), 'col');
 			
-			if (!is_array($this->_synonyms) or empty($this->_synonyms)) {
+			$synonyms = SearchIndex::getSynonyms();
+			
+			if (!is_array($synonyms) or empty($synonyms)) {
 				$tableBody = array(
 					Widget::TableRow(array(Widget::TableData(__('None Found.'), 'inactive', null, count($tableHead))))
 				);
@@ -150,14 +50,14 @@
 			
 			else {
 				
-				foreach ($this->_synonyms as $hash => $synonym) {					
+				foreach ($synonyms as $synonym) {					
 					$col_word = Widget::TableData(
 						Widget::Anchor(
 							$synonym['word'],
-							"{$this->_uri}/synonyms/edit/{$hash}/"
+							"{$this->uri}/synonyms/edit/{$synonym['id']}/"
 						)
 					);
-					$col_word->appendChild(Widget::Input("items[{$hash}]", null, 'checkbox'));
+					$col_word->appendChild(Widget::Input("items[{$synonym['id']}]", null, 'checkbox'));
 					$col_synonyms = Widget::TableData($synonym['synonyms']);
 					$tableBody[] = Widget::TableRow(array($col_word, $col_synonyms));
 				}
@@ -185,4 +85,90 @@
 			$this->Form->appendChild($actions);
 
 		}
+		
+		public function __actionNew() {
+			$this->__actionEdit();
+		}
+		
+		public function __viewNew() {
+			$this->__viewEdit();
+		}
+		
+		public function __actionEdit() {
+			$synonym = $_POST['synonym'];
+			
+			if(@array_key_exists('delete', $_POST['action'])) {
+				SearchIndex::deleteSynonym($this->id);
+				redirect("{$this->uri}/synonyms/");
+			}
+			
+			if($this->id) $synonym['id'] = $this->id;
+			SearchIndex::saveSynonym($synonym);			
+			redirect("{$this->uri}/synonyms/");
+		}
+		
+		public function __viewEdit() {
+			
+			if($this->id) {
+				$synonym = SearchIndex::getSynonym($this->id);
+			}
+			
+			$this->setPageType('form');
+			$this->appendSubheading(__('Search Index') . " &rsaquo; <a href=\"{$this->uri}/synonyms/\">" . __('Synonyms') . "</a>" . (!is_null($this->_synonym) ? ' <span class="meta">' . $this->_synonym['word'] . '</span>' : ''));
+			
+			$fieldset = new XMLElement('fieldset');
+			$fieldset->setAttribute('class', 'settings');
+			$fieldset->appendChild(new XMLElement('legend', __('Replacement word')));
+			$p = new XMLElement('p', __('Matching synonyms will be replaced with this word.'));
+			$p->setAttribute('class', 'help');
+			$fieldset->appendChild($p);
+						
+			$label = Widget::Label(__('Word'));
+			$label->appendChild(Widget::Input(
+				'synonym[word]',
+				$synonym['word']
+			));
+			$fieldset->appendChild($label);
+			$fieldset->appendChild(new XMLElement('p', __('e.g. United Kingdom'), array('class'=>'help')));
+			
+			$this->Form->appendChild($fieldset);
+			
+			$fieldset = new XMLElement('fieldset');
+			$fieldset->setAttribute('class', 'settings');
+			$fieldset->appendChild(new XMLElement('legend', __('Synonyms')));
+			$p = new XMLElement('p', __('These words will be replaced with the word above. Separate multiple words with commas.'));
+			$p->setAttribute('class', 'help');
+			$fieldset->appendChild($p);
+						
+			$label = Widget::Label(__('Synonyms'));
+			$label->appendChild(Widget::Textarea(
+				'synonym[synonyms]',
+				5, 40,
+				$synonym['synonyms']
+			));
+			$fieldset->appendChild($label);
+			$fieldset->appendChild(new XMLElement('p', __('e.g. UK, Great Britain, GB'), array('class'=>'help')));
+			
+			$this->Form->appendChild($fieldset);
+			
+			$div = new XMLElement('div');
+			$div->setAttribute('class', 'actions');
+			$div->appendChild(
+				Widget::Input('action[save]',
+					__('Save Changes'),
+					'submit', array(
+						'accesskey'		=> 's'
+					)
+				)
+			);
+			
+			if($this->mode == 'edit'){
+				$button = new XMLElement('button', __('Delete'));
+				$button->setAttributeArray(array('name' => 'action[delete]', 'class' => 'button confirm delete', 'title' => __('Delete this synonym'), 'accesskey' => 'd', 'data-message' => __('Are you sure you want to delete this synonym?')));
+				$div->appendChild($button);
+			}
+						
+			$this->Form->appendChild($div);
+		}
+		
 	}

@@ -205,7 +205,29 @@ Class SearchIndex {
 		self::saveEntryKeywords($entry_id, $data);
 	}
 	
+	/**
+	* Remove stored keywords for an entry
+	*
+	* @param int $entry
+	*/
+	public function deleteEntryKeywords($entry_id) {
+		// get all keywords for this entry
+		$keywords = Symphony::Database()->fetch(sprintf("SELECT keyword_id FROM `tbl_search_index_entry_keywords` WHERE `entry_id` = %d", $entry_id));
+		// delete the keyword association (unlink the keyword from the entry)
+		Symphony::Database()->query(sprintf("DELETE FROM `tbl_search_index_entry_keywords` WHERE `entry_id` = %d", $entry_id));
+		// see if each keyword exists for other entries
+		foreach($keywords as $keyword) {
+			$exists = Symphony::Database()->fetchVar('count', 0, sprintf("SELECT COUNT(keyword_id) AS `count` FROM `sym_search_index_entry_keywords` WHERE `keyword_id` = %d AND `entry_id` <> %d", $keyword['keyword_id'], $entry_id));
+			if((int)$exists == 0) {
+				Symphony::Database()->query(sprintf("DELETE FROM `tbl_search_index_keywords` WHERE `id` = %d", $keyword['keyword_id']));
+			}
+		}
+	}
+	
 	public function saveEntryKeywords($entry_id, $data) {
+		
+		// delete keyword associations for this entry
+		self::deleteEntryKeywords($entry_id);
 		
 		// remove as much crap as possible
 		$data = strip_tags($data);
@@ -284,9 +306,6 @@ Class SearchIndex {
 		// no words to log
 		if(count($existing_keywords) == 0) return;
 		
-		// delete keyword associations for this entry
-		Symphony::Database()->query(sprintf("DELETE FROM `tbl_search_index_entry_keywords` WHERE `entry_id` = %d", $entry_id));
-		
 		// add all the new word associations in one batch (MUCH faster than an INSERT per word!)
 		$insert = "INSERT INTO tbl_search_index_entry_keywords (entry_id, keyword_id, frequency) VALUES ";
 		foreach($existing_keywords as $word) {
@@ -303,12 +322,10 @@ Class SearchIndex {
 	* @param int $section_id
 	*/
 	public function deleteIndexedEntriesBySection($section_id) {
-		Symphony::Database()->query(
-			sprintf(
-				"DELETE FROM `tbl_search_index_data` WHERE `section_id` = %d",
-				$section_id
-			)
-		);
+		$entries = Symphony::Database()->fetch(sprintf("SELECT id FROM `tbl_entries` WHERE `section_id` = %d", $section_id));
+		foreach($entries as $entry) {
+			self::deleteIndexedEntriesByEntry($entry['id']);
+		}
 	}
 	
 	/**
@@ -317,6 +334,7 @@ Class SearchIndex {
 	* @param int $entry_id
 	*/
 	public function deleteIndexedEntriesByEntry($entry_id) {
+		self::deleteEntryKeywords($entry_id);
 		Symphony::Database()->query(
 			sprintf(
 				"DELETE FROM `tbl_search_index_data` WHERE `entry_id` = %d",

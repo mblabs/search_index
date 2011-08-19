@@ -118,12 +118,12 @@
 			
 			$fieldset = new XMLElement('fieldset');
 			$fieldset->setAttribute('class', 'settings');
-			$fieldset->appendChild(new XMLElement('legend', __('Replacement word')));
-			$p = new XMLElement('p', __('Matching synonyms will be replaced with this word.'));
+			$fieldset->appendChild(new XMLElement('legend', __('Control word')));
+			$p = new XMLElement('p', __('Matching synonyms will be replaced with this word. This word should appear in your content.'));
 			$p->setAttribute('class', 'help');
 			$fieldset->appendChild($p);
 						
-			$label = Widget::Label(__('Word'));
+			$label = Widget::Label('');
 			$label->appendChild(Widget::Input(
 				'synonym[word]',
 				$synonym['word']
@@ -136,18 +136,18 @@
 			$fieldset = new XMLElement('fieldset');
 			$fieldset->setAttribute('class', 'settings');
 			$fieldset->appendChild(new XMLElement('legend', __('Synonyms')));
-			$p = new XMLElement('p', __('These words will be replaced with the word above. Separate multiple words with commas.'));
+			$p = new XMLElement('p', __('These words will be converted to the control word.'));
 			$p->setAttribute('class', 'help');
 			$fieldset->appendChild($p);
 						
-			$label = Widget::Label(__('Synonyms'));
+			$label = Widget::Label('');
 			$label->appendChild(Widget::Textarea(
 				'synonym[synonyms]',
 				5, 40,
 				$synonym['synonyms']
 			));
 			$fieldset->appendChild($label);
-			$fieldset->appendChild(new XMLElement('p', __('e.g. UK, Great Britain, GB'), array('class'=>'help')));
+			$fieldset->appendChild(new XMLElement('p', __('Separate multiple words with commas; e.g. UK, Great Britain, GB'), array('class'=>'help')));
 			
 			$this->Form->appendChild($fieldset);
 			

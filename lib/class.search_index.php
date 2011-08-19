@@ -568,6 +568,35 @@ Class SearchIndex {
 	
 	
 	
+	public static function getStopWords() {
+		$stopwords = Symphony::Database()->fetchCol('word',
+			"SELECT
+				word
+			FROM
+				tbl_search_index_stopwords
+			ORDER BY
+				word ASC"
+		);
+		return $stopwords;
+	}
+	
+	public static function saveStopWords($stopwords) {
+		
+		// remove existing
+		Symphony::Database()->query("DELETE FROM tbl_search_index_stopwords");
+		
+		foreach($stopwords as $word) {
+			Symphony::Database()->insert(
+				array(
+					'word' => trim($word)
+				),
+				'tbl_search_index_stopwords'
+			);
+		}
+		
+	}
+	
+	
 	
 
 	
@@ -791,7 +820,7 @@ Class SearchIndex {
 	public static function isStopWord($word) {
 		// load stopwords if not already loaded
 		if(is_null(self::$_stopwords)) {
-			self::$_stopwords = explode("\n", file_get_contents(EXTENSIONS . '/search_index/lib/stop-words.txt'));
+			self::$_stopwords = self::getStopWords();
 		}
 		return in_array($word, self::$_stopwords);
 	}

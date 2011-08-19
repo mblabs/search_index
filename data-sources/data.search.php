@@ -363,6 +363,8 @@
 				if(count($sounds_like) > 0) {
 					$alternative_spelling = new XMLElement('alternative-keywords');
 					foreach($sounds_like as $word => $soundalike) {
+						// don't suggest a stop word, it's useless!
+						if(SearchIndex::isStopWord($soundalike)) continue;
 						$alternative_spelling->appendChild(
 							new XMLElement('keyword', NULL, array(
 								'original' => $word,

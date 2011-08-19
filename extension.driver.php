@@ -344,6 +344,11 @@
 				),
 				array(
 					'location'	=> __('Search Index'),
+					'name'		=> __('Search Suggestions'),
+					'link'		=> '/searchsuggestions/'
+				),
+				array(
+					'location'	=> __('Search Index'),
 					'name'		=> __('Session Logs'),
 					'link'		=> '/sessions/'
 				),

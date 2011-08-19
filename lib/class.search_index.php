@@ -599,6 +599,39 @@ Class SearchIndex {
 	
 	
 
+	/**
+	* Returns an array of all synonyms
+	*/
+	public static function getQuerySuggestions() {
+		$uggestions = Symphony::Database()->fetchCol('word',
+			"SELECT
+				word
+			FROM
+				tbl_search_index_query_suggestions
+			ORDER BY
+				word ASC"
+		);
+		return $uggestions;
+	}
+	
+	/**
+	* Save all synonyms to config
+	*
+	* @param array $synonyms
+	*/
+	public static function saveQuerySuggestions($suggestions) {
+		// remove existing
+		Symphony::Database()->query("DELETE FROM tbl_search_index_query_suggestions");
+		
+		foreach($suggestions as $word) {
+			Symphony::Database()->insert(
+				array(
+					'word' => trim($word)
+				),
+				'tbl_search_index_query_suggestions'
+			);
+		}
+	}
 	
 	
 	
@@ -794,29 +827,7 @@ Class SearchIndex {
 		}
 		return true;
 	}
-	
-	/**
-	* Returns an array of all synonyms
-	*/
-	public static function getQuerySuggestions() {
-		$suggestions = Symphony::Configuration()->get('autosuggestions', 'search_index');
-		//$indexes = preg_replace("/\\\/",'',$synonyms);
-		$suggestions = unserialize($suggestions);
-		if (!is_array($suggestions)) $suggestions = array();
-		uasort($suggestions, array('SearchIndex', 'sortAlphabetical'));
-		return $suggestions;
-	}
-	
-	/**
-	* Save all synonyms to config
-	*
-	* @param array $synonyms
-	*/
-	public static function saveQuerySuggestions($suggestions) {
-		Symphony::Configuration()->set('autosuggestions', stripslashes(serialize($suggestions)), 'search_index');
-		Symphony::Engine()->saveConfig();
-	}
-	
+		
 	public static function isStopWord($word) {
 		// load stopwords if not already loaded
 		if(is_null(self::$_stopwords)) {

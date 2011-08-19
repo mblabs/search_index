@@ -78,7 +78,6 @@
 				);
 				if ($section) $sections[$section['id']] = array('handle' => $handle, 'name' => $section['name']);
 			}
-			
 		
 		// Build SQL
 		/*-----------------------------------------------------------------------*/	
@@ -96,7 +95,7 @@
 					%s
 				GROUP BY `keywords`.`keyword`
 				ORDER BY %s
-				LIMIT 0, 20",
+				LIMIT 0, 15",
 				Symphony::Database()->cleanValue($keywords),
 				(count($sections) > 0) ? sprintf('AND `entry`.section_id IN (%s)', implode(',', array_keys($sections))) : NULL,
 				$sort
@@ -111,13 +110,13 @@
 			$autosuggest = SearchIndex::getQuerySuggestions();
 			
 			foreach($autosuggest as $word) {
-				if(!preg_match("/^$keywords/", $word)) continue;
+				if(!preg_match("/^$keywords/i", $word)) continue;
 				$result->appendChild(
 					new XMLElement(
 						'word',
 						General::sanitize($word),
 						array(
-							'best-bet' => 'yes',
+							'curated' => 'yes',
 							'handle' => Lang::createHandle($word)
 						)
 					)
@@ -126,7 +125,7 @@
 			
 			foreach($words as $word) {
 				// if already matched in the autosuggest output, do not repeat here
-				if(preg_match("/^$keywords/", $word['keyword'])) continue;
+				if(in_array($word['keyword'], $autosuggest)) continue;
 				$result->appendChild(
 					new XMLElement(
 						'word',

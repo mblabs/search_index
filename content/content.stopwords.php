@@ -9,9 +9,10 @@
 			SearchIndex::saveStopWords($stopwords);
 			$this->pageAlert(
 				__(
-					'Stop words updated at %1$s.',
+					'Stop words updated at %s. You need to <a href="%s">re-index your entries</a> for these changes to take effect.',
 					array(
-						DateTimeObj::getTimeAgo(__SYM_TIME_FORMAT__)
+						DateTimeObj::getTimeAgo(__SYM_TIME_FORMAT__),
+						$this->uri . '/indexes/'
 					)
 				),
 				Alert::SUCCESS
@@ -27,10 +28,7 @@
 			
 			$this->setPageType('form');
 			
-			$this->appendSubheading(
-				__('Search Index') . ' &rsaquo; ' . __('Stop Words') . 
-				Widget::Anchor(__('Create New'), Administration::instance()->getCurrentPageURL().'new/', __('Create New'), 'create button')->generate()
-			);
+			$this->appendSubheading(__('Search Index') . ' &rsaquo; ' . __('Stop Words'));
 		
 			$fieldset = new XMLElement('fieldset');
 			$fieldset->setAttribute('class', 'settings');
@@ -46,7 +44,7 @@
 				implode(', ', SearchIndex::getStopWords())
 			));
 			$fieldset->appendChild($label);
-			$fieldset->appendChild(new XMLElement('p', __('Separate each word by a comma; e.g. who, what, when, where.'), array('class'=>'help')));
+			$fieldset->appendChild(new XMLElement('p', __('Separate multiple words with commas; e.g. who, what, when, where.'), array('class'=>'help')));
 			
 			$this->Form->appendChild($fieldset);
 			

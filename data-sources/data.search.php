@@ -136,7 +136,7 @@
 		/*-----------------------------------------------------------------------*/
 
 			$sql_weighting = '';
-			foreach($indexes as $$index) {
+			foreach($indexes as $index) {
 				$weight = isset($index['weighting']) ? $index['weighting'] : 2;
 				switch ($weight) {
 					case 0: $weight = 4; break;		// highest

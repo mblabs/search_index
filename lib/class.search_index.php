@@ -602,15 +602,19 @@ Class SearchIndex {
 	/**
 	* Returns an array of all synonyms
 	*/
-	public static function getQuerySuggestions() {
-		$uggestions = Symphony::Database()->fetchCol('word',
+	public static function getQuerySuggestions($keywords=NULL) {
+		$uggestions = Symphony::Database()->fetchCol('word', sprintf(
 			"SELECT
 				word
 			FROM
 				tbl_search_index_query_suggestions
+			WHERE
+				1=1
+				%s
 			ORDER BY
-				word ASC"
-		);
+				word ASC",
+			($keywords) ? "AND word LIKE '" . Symphony::Database()->cleanValue($keywords) . "%'" : ''
+		));
 		return $uggestions;
 	}
 	

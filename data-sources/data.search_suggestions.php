@@ -45,7 +45,6 @@
 		/*-----------------------------------------------------------------------*/	
 
 			$keywords = (string)$_GET['keywords'];
-			$keywords = trim($keywords);
 			
 			$sort = (string)$_GET['sort'];
 			if($sort == '' || $sort == 'alphabetical') {
@@ -100,17 +99,68 @@
 				(count($sections) > 0) ? sprintf('AND `entry`.section_id IN (%s)', implode(',', array_keys($sections))) : NULL,
 				$sort
 			);
+			
+			$sql_phrases = sprintf(
+				"SELECT
+					SUBSTRING_INDEX(
+						SUBSTRING(CONVERT(LOWER(data) USING utf8), LOCATE('%1\$s', CONVERT(LOWER(data) USING utf8))),
+						' ',
+						%2\$d
+					) as keyword
+				FROM
+					sym_search_index_data
+				WHERE
+					LOWER(data) like '%3\$s'
+				GROUP BY
+					SUBSTRING_INDEX(
+						SUBSTRING(
+							CONVERT(LOWER(data) USING utf8), LOCATE('%1\$s', CONVERT(LOWER(data) USING utf8))
+						),
+						' ',
+						%2\$d
+					)
+				LIMIT
+					0, 15",
+				Symphony::Database()->cleanValue($keywords),
+				((substr_count($keywords, ' ')) >= 3) ? 3 : substr_count($keywords, ' ') + 2,
+				'%' . Symphony::Database()->cleanValue($keywords) . '%'
+			);
 
 		
 		// Run!
 		/*-----------------------------------------------------------------------*/
 			
-			// get our entries, returns entry IDs
-			$words = Symphony::Database()->fetch($sql_words);
-			$autosuggest = SearchIndex::getQuerySuggestions();
+			// single word, search the indivudual word index
+			if(substr_count($keywords, ' ') == 0) {
+				$words = Symphony::Database()->fetch($sql_words);
+			}
+			// phrase, look for this phrase in full index
+			else {
+				$words = Symphony::Database()->fetch($sql_phrases);
+				
+				foreach($words as $i => $word) {
+					
+					$words[$i]['frequency'] = 1;
+					$words[$i]['keyword'] = SearchIndex::stripPunctuation($word['keyword']);
+					
+					// don't use if last word fails basic criteria, prevents something like
+					// "symphony is a", should just be "symphony"
+					$last_word = end(explode(' ', $word['keyword']));
+					if(
+						SearchIndex::strlen($last_word) >= (int)Symphony::Configuration()->get('max-word-length', 'search_index') ||
+						SearchIndex::strlen($last_word) < (int)Symphony::Configuration()->get('min-word-length', 'search_index') ||
+						SearchIndex::isStopWord($last_word)
+					) {
+						unset($words[$i]);
+					}
+				}
+				
+			}
 			
-			foreach($autosuggest as $word) {
-				if(!preg_match("/^$keywords/i", $word)) continue;
+			// get curated autosuggestions partial matching this query
+			$autosuggest = SearchIndex::getQuerySuggestions($keywords);
+			
+			foreach($autosuggest as $i => $word) {
 				$result->appendChild(
 					new XMLElement(
 						'word',
@@ -121,11 +171,14 @@
 						)
 					)
 				);
+				// store lowercase for uniqueness comparison later
+				$autosuggest[$i] = strtolower($word);
 			}
 			
 			foreach($words as $word) {
 				// if already matched in the autosuggest output, do not repeat here
-				if(in_array($word['keyword'], $autosuggest)) continue;
+				if(in_array(strtolower($word['keyword']), $autosuggest)) continue;
+				
 				$result->appendChild(
 					new XMLElement(
 						'word',

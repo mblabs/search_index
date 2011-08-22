@@ -130,7 +130,10 @@
 					$r[] = Widget::TableData(number_format($row['average_results'], 1), 'average-results');
 					$r[] = Widget::TableData(number_format($row['average_depth'], 1), 'average-depth');
 					
-					$r[] = Widget::TableData('<span title="'.__('Use this phrase as a search autosuggestion').'" class="suggestion '.($is_suggestion ? 'yes' : 'no').'"></span>', 'suggestion');
+					$suggestion_span = new XMLElement('span', NULL);
+					$suggestion_span->setAttribute('class', 'suggestion ' . ($is_suggestion ? 'yes' : 'no'));
+					$suggestion_span->setAttribute('title', __('Use this phrase as a search autosuggestion'));
+					$r[] = Widget::TableData($suggestion_span->generate(), 'suggestion');
 					
 					$tableBody[] = Widget::TableRow($r);
 					

@@ -66,6 +66,8 @@ table span.suggestion {
 	position: relative;
 	top: 2px;
 	cursor: pointer;
+	text-indent: -99999px;
+	overflow: hidden;
 }
 
 table span.suggestion.yes,

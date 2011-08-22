@@ -86,7 +86,7 @@ var SearchIndex_Indexes = {
 	bindUseAsSuggestion: function() {
 		jQuery('table span.suggestion').bind('click', function() {
 			var span = jQuery(this);
-			var query = span.parent().find('.query').text();
+			var query = span.parents('tr').find('.query').text();
 			var use = span.hasClass('yes');
 			var use_as_suggestion = (use) ? 'no' : 'yes';
 			jQuery.get(Symphony.Context.get('root') + '/symphony/extension/search_index/mark_use_as_suggestion/?query='+query+'&use_as_suggestion='+use_as_suggestion, function() {

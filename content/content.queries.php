@@ -82,6 +82,7 @@
 			$tableHead[] = array(__('Cumulative %'), 'col');
 			$tableHead[] = $this->__buildColumnHeader(__('Avg. results'), 'average_results', 'desc');
 			$tableHead[] = $this->__buildColumnHeader(__('Avg. depth'), 'average_depth', 'desc');
+			$tableHead[] = array(__('Search Suggestion'), 'col', array('class' => 'suggestion'));
 			
 			// no rows
 			if (!is_array($rows) or empty($rows)) {
@@ -120,14 +121,17 @@
 					$r = array();
 					$r[] = Widget::TableData($rank, 'rank');
 					$r[] = Widget::TableData(
-						(empty($row['keywords']) ? __('None') : '<span title="'.__('Use this phrase as a search autosuggestion').'" class="suggestion '.($is_suggestion ? 'yes' : 'no').'"></span><span class="query">' . $row['keywords'] . '</span>'),
-						(empty($row['keywords']) ? 'inactive' : '')
+						(empty($row['keywords']) ? __('None') : $row['keywords']),
+						(empty($row['keywords']) ? 'inactive query' : 'query')
 					);
 					$r[] = Widget::TableData($row['count'], 'count');
 					$r[] = Widget::TableData((number_format($row_percent, 2)) . '%', 'percent');
 					$r[] = Widget::TableData((number_format($cumulative_percent, 2)) . '%', 'percent');
 					$r[] = Widget::TableData(number_format($row['average_results'], 1), 'average-results');
 					$r[] = Widget::TableData(number_format($row['average_depth'], 1), 'average-depth');
+					
+					$r[] = Widget::TableData('<span title="'.__('Use this phrase as a search autosuggestion').'" class="suggestion '.($is_suggestion ? 'yes' : 'no').'"></span>', 'suggestion');
+					
 					$tableBody[] = Widget::TableRow($r);
 					
 					$rank++;

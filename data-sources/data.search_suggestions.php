@@ -111,6 +111,7 @@
 					sym_search_index_data
 				WHERE
 					LOWER(data) like '%3\$s'
+					%4\$s
 				GROUP BY
 					SUBSTRING_INDEX(
 						SUBSTRING(
@@ -123,7 +124,8 @@
 					0, 15",
 				Symphony::Database()->cleanValue($keywords),
 				((substr_count($keywords, ' ')) >= 3) ? 3 : substr_count($keywords, ' ') + 2,
-				'%' . Symphony::Database()->cleanValue($keywords) . '%'
+				'%' . Symphony::Database()->cleanValue($keywords) . '%',
+				(count($sections) > 0) ? sprintf('AND section_id IN (%s)', implode(',', array_keys($sections))) : NULL
 			);
 
 		
@@ -158,7 +160,7 @@
 			}
 			
 			// get curated autosuggestions partial matching this query
-			$autosuggest = SearchIndex::getQuerySuggestions($keywords);
+			$autosuggest = SearchIndex::getQuerySuggestions($keywords, TRUE);
 			
 			foreach($autosuggest as $i => $word) {
 				$result->appendChild(

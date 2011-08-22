@@ -334,7 +334,10 @@
 				
 				$include_words_all = array();
 				foreach($keywords_boolean['include-words-all'] as $word) {
-					$include_words_all[] = SearchIndex::stripPunctuation($word);
+					// don't soundalike stop words
+					$word = SearchIndex::stripPunctuation($word);;
+					if(SearchIndex::isStopWord($word)) continue;
+					$include_words_all[] = $word;
 				}
 				$include_words_all = array_unique($include_words_all);
 				

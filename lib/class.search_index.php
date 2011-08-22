@@ -602,7 +602,7 @@ Class SearchIndex {
 	/**
 	* Returns an array of all synonyms
 	*/
-	public static function getQuerySuggestions($keywords=NULL) {
+	public static function getQuerySuggestions($keywords=NULL, $partial_match=FALSE) {
 		$uggestions = Symphony::Database()->fetchCol('word', sprintf(
 			"SELECT
 				word
@@ -613,7 +613,7 @@ Class SearchIndex {
 				%s
 			ORDER BY
 				word ASC",
-			($keywords) ? "AND word LIKE '" . Symphony::Database()->cleanValue($keywords) . "%'" : ''
+			($keywords) ? "AND word LIKE '" . Symphony::Database()->cleanValue($keywords) . ($partial_match ? '%' : '') . "'" : ''
 		));
 		return $uggestions;
 	}
@@ -635,6 +635,25 @@ Class SearchIndex {
 				'tbl_search_index_query_suggestions'
 			);
 		}
+	}
+	
+	public static function deleteQuerySuggestion($keywords) {
+		Symphony::Database()->query(sprintf(
+			"DELETE FROM
+				tbl_search_index_query_suggestions
+			WHERE
+				word='%s'",
+			Symphony::Database()->cleanValue($keywords)
+		));
+	}
+	
+	public static function addQuerySuggestion($keywords) {
+		Symphony::Database()->insert(
+			array(
+				'word' => trim($keywords)
+			),
+			'tbl_search_index_query_suggestions'
+		);
 	}
 	
 	

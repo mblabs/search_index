@@ -11,20 +11,11 @@
 		}
 						
 		public function __viewIndex() {
-			
-			$query = strtolower(trim($_GET['query']));
-			$use_as_suggestion = $_GET['use_as_suggestion'];
-			
-			$suggestions = SearchIndex::getQuerySuggestions();
-			
-			foreach($suggestions as $i => $suggestion) {
-				if($suggestion == $query) unset($suggestions[$i]);
+			$keywords = trim($_GET['query']);
+			SearchIndex::deleteQuerySuggestion($keywords);
+			if($_GET['use_as_suggestion'] == 'yes') {
+				SearchIndex::addQuerySuggestion($keywords);
 			}
-			
-			if($use_as_suggestion == 'yes') $suggestions[] = $query;
-			
-			SearchIndex::saveQuerySuggestions($suggestions);
-			
 			exit();
 			
 		}

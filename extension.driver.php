@@ -53,6 +53,8 @@
 					  `entry_id` int(11) NOT NULL,
 					  `section_id` int(11) NOT NULL,
 					  `data` text,
+					  `data_stripped` text,
+					  `data_stripped_stemmed` text,
 					  PRIMARY KEY (`id`),
 					  KEY `entry_id` (`entry_id`),
 					  FULLTEXT KEY `data` (`data`)

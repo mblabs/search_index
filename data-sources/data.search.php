@@ -123,11 +123,11 @@
 			
 			// should we apply word stemming?
 			$do_stemming = ($config->{'stem-words'} == 'yes') ? TRUE : FALSE;
-			if($do_stemming) require_once(EXTENSIONS . '/search_index/lib/porterstemmer/class.porterstemmer.php');
+			require_once(EXTENSIONS . '/search_index/lib/porterstemmer/class.porterstemmer.php');
 			
 			// replace synonyms
 			$keywords = SearchIndex::applySynonyms($param_keywords);
-			$keywords_boolean = SearchIndex::parseKeywordString($keywords, $do_stemming);
+			$keywords_boolean = SearchIndex::parseKeywordString($keywords);
 			$keywords_highlight = trim(implode(' ', $keywords_boolean['highlight']), '"');
 			
 			
@@ -229,32 +229,63 @@
 						$suffix = '[[:>:]]';
 					}
 					
-					// all words to include in the query (single words and phrases)
-					foreach($keywords_boolean['include-words-all'] as $keyword) {
-						$keyword_stem = NULL;
-						
+					$used_terms = array();
+					
+					// phrases
+					foreach($keywords_boolean['include-phrase'] as $phrase) {
+						$used_terms[] = (object)array(
+							'use-stem' => FALSE,
+							'keywords' => Symphony::Database()->cleanValue($phrase),
+							'keywords-stemmed' => NULL
+						);
+					}
+					
+					// single words
+					foreach($keywords_boolean['include-word'] as $keyword) {
 						$keyword = Symphony::Database()->cleanValue($keyword);
-						if($do_stemming) {
-							$keyword_stem = Symphony::Database()->cleanValue(PorterStemmer::Stem($keyword));
-						}
+						$keyword_stem = PorterStemmer::Stem($keyword);
+						$used_terms[] = (object)array(
+							'use-stem' => ($do_stemming && ($keyword_stem != $keyword)),
+							'keywords' => $keywords,
+							'keywords-stemmed' => $keyword_stem
+						);
+					}
+					
+					// all words to include in the query (single words and phrases)
+					foreach($used_terms as $term) {
 						
-						// if the word can be stemmed, look for the word or the stem version
-						if ($do_stemming && ($keyword_stem != $keyword)) {
-							$sql_where .= "(CONCAT(' ', index.data) $mode '$prefix$keyword$suffix' OR index.data $mode '$prefix$keyword$suffix') AND ";
-						} else {
-							$sql_where .= "CONCAT(' ', index.data) $mode '$prefix$keyword$suffix' AND ";
+						// is a phrase, just try and match the single phrase
+						// (use full `data` i.e. allow stop words and no stemming)
+						if ($term->{'keywords-stemmed'} === NULL) {
+							$column = 'data';
+							// append space so whole-word matches only e.g "% foo bar %"
+							$keyword = trim($term->keywords) . ' ';
+							$sql_where .= "(CONCAT(' ', index.$column, ' ') $mode '$prefix$keyword$suffix' OR index.data $mode '$prefix$keyword$suffix') AND ";
+						}
+						// is a single word, use stemmed data that also excludes stop words
+						else if($term->{'use-stem'} === TRUE) {
+							$column = 'data_stripped_stemmed';
+							$keyword = $term->{'keywords-stemmed'};
+							$sql_where .= "CONCAT(' ', index.$column) $mode '$prefix$keyword$suffix' AND ";
+						}
+						// is a single word, no stemming, but use data that excludes stop words still
+						else {
+							$column = 'data_stripped';
+							$keyword = $term->keywords;
+							$sql_where .= "CONCAT(' ', index.$column) $mode '$prefix$keyword$suffix' AND ";
 						}
 						
 						// if this keyword exists in the entry contents, add 1 to "keywords_matched"
 						// which represents number of unique keywords in the search string that are found
-						$sql_locate .= "IF(LOCATE('$keyword', LOWER(`data`)) > 0, 1, 0) + ";
+						$sql_locate .= "IF(LOCATE('$keyword', LOWER(`$column`)) > 0, 1, 0) + ";
 						
 						// see how many times this word is found in the entry contents by removing it from
 						// the column text then compare length to see how many times it was removed
-						$sql_replace .= "(LENGTH(`data`) - LENGTH(REPLACE(LOWER(`data`),LOWER('$keyword'),''))) / LENGTH('$keyword') + ";
+						$sql_replace .= "(LENGTH(`$column`) - LENGTH(REPLACE(LOWER(`$column`),LOWER('$keyword'),''))) / LENGTH('$keyword') + ";
 					}
 					
 					// all words or phrases that we do not want
+					// use full index to include stop words, no stemming
 					foreach($keywords_boolean['exclude-words-all'] as $keyword) {
 						$keyword = Symphony::Database()->cleanValue($keyword);
 						$sql_where .= "index.data NOT $mode '$prefix$keyword$suffix' AND ";
@@ -335,7 +366,7 @@
 				$include_words_all = array();
 				foreach($keywords_boolean['include-words-all'] as $word) {
 					// don't soundalike stop words
-					$word = SearchIndex::stripPunctuation($word);;
+					$word = SearchIndex::stripPunctuation($word);
 					if(SearchIndex::isStopWord($word)) continue;
 					$include_words_all[] = $word;
 				}

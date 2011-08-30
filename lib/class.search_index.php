@@ -179,7 +179,9 @@ Class SearchIndex {
 			$data = trim($data);
 			$data = preg_replace("/\n/m", ' ', $data); // remove new lines
 			$data = preg_replace("/[\s]{2,}/m", ' ', $data); // remove muliple spaces
+			
 			self::saveEntryIndex($entry_id, $section, $data);
+			
 		}
 		
 	}
@@ -192,12 +194,28 @@ Class SearchIndex {
 	* @param string $data
 	*/
 	public function saveEntryIndex($entry_id, $section_id, $data) {
+		
+		require_once(EXTENSIONS . '/search_index/lib/porterstemmer/class.porterstemmer.php');
+		
+		$data_stripped = array();
+		$data_stripped_stemmed = array();
+		
+		$words = explode(' ', trim($data));
+		foreach($words as $word) {
+			$word = trim(self::stripPunctuation($word));
+			if(self::isStopWord($word)) continue;
+			$data_stripped[] = $word;
+			$data_stripped_stemmed[] = PorterStemmer::Stem($word);
+		}
+		
 		// stores the full entry text
 		Symphony::Database()->insert(
 			array(
 				'entry_id' => $entry_id,
 				'section_id' => $section_id,
-				'data' => $data
+				'data' => $data,
+				'data_stripped' => implode(' ', $data_stripped),
+				'data_stripped_stemmed' => implode(' ', $data_stripped_stemmed)
 			),
 			'tbl_search_index_data'
 		);
@@ -706,7 +724,9 @@ Class SearchIndex {
 	
 	public static function parseKeywordString($keywords, $stem_words=FALSE) {
 		
-		if($stem_words) require_once(EXTENSIONS . '/search_index/lib/porterstemmer/class.porterstemmer.php');
+		// FIXME, do we need stemming in here?
+		//if($stem_words) require_once(EXTENSIONS . '/search_index/lib/porterstemmer/class.porterstemmer.php');
+		//$stem_words = FALSE;
 		
 		// we will store the various keywords under these categories
 		$boolean_keywords = array(
@@ -754,13 +774,13 @@ Class SearchIndex {
 			if (self::substr($keywords[$i], 0, 1) == '+') {
 				$tmp_include_words[] = self::substr($keywords[$i], 1);
 				$boolean_keywords['highlight'][] = self::substr($keywords[$i], 1);
-				if ($stem_words) $boolean_keywords['highlight'][] = PorterStemmer::Stem(substr($keywords[$i], 1));
+				//if ($stem_words) $boolean_keywords['highlight'][] = PorterStemmer::Stem(substr($keywords[$i], 1));
 			} else if (self::substr($keywords[$i], 0, 1) == '-') {
 				$boolean_keywords['exclude-word'][] = self::substr($keywords[$i], 1);
 			} else {
 				$tmp_include_words[] = $keywords[$i];
 				$boolean_keywords['highlight'][] = $keywords[$i];
-				if ($stem_words) $boolean_keywords['highlight'][] = PorterStemmer::Stem($keywords[$i]);
+				//if ($stem_words) $boolean_keywords['highlight'][] = PorterStemmer::Stem($keywords[$i]);
 			}
 			$i++;
 		}

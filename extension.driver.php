@@ -57,7 +57,9 @@
 					  `data_stripped_stemmed` text,
 					  PRIMARY KEY (`id`),
 					  KEY `entry_id` (`entry_id`),
-					  FULLTEXT KEY `data` (`data`)
+					  FULLTEXT KEY `data` (`data`),
+					  FULLTEXT KEY `data_stripped` (`data_stripped`),
+					  FULLTEXT KEY `data_stripped_stemmed` (`data_stripped_stemmed`)
 					) ENGINE=MyISAM DEFAULT CHARSET=utf8"
 				);
 				

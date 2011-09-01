@@ -187,6 +187,7 @@
 			Symphony::Configuration()->set('min-word-length', 3, 'search_index');
 			Symphony::Configuration()->set('max-word-length', 30, 'search_index');
 			Symphony::Configuration()->set('stem-words', 'yes', 'search_index');
+			Symphony::Configuration()->set('partial-words', 'yes', 'search_index');
 			Symphony::Configuration()->set('build-entries', 'no', 'search_index');
 			Symphony::Configuration()->set('return-count-for-each-section', 'yes', 'search_index');
 			Symphony::Configuration()->set('mode', 'like', 'search_index');

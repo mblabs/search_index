@@ -222,6 +222,7 @@
 					if($mode == 'LIKE') {
 						$prefix = '% ';
 						$suffix = '%';
+						if($config->{'partial-words'} == 'no') $suffix = ' ' . $suffix;
 					}
 					// apply word boundary separator
 					if($mode == 'REGEXP') {
@@ -246,7 +247,7 @@
 						$keyword_stem = PorterStemmer::Stem($keyword);
 						$used_terms[] = (object)array(
 							'use-stem' => ($do_stemming && ($keyword_stem != $keyword)),
-							'keywords' => $keywords,
+							'keywords' => $keyword,
 							'keywords-stemmed' => $keyword_stem
 						);
 					}

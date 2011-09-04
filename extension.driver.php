@@ -2,6 +2,7 @@
 
 	require_once(TOOLKIT . '/class.datasource.php');
 	require_once(EXTENSIONS . '/search_index/lib/class.search_index.php');
+	require_once(EXTENSIONS . '/search_index/lib/class.search_index_logs.php');
 	require_once(EXTENSIONS . '/search_index/lib/class.entry_xml_datasource.php');
 	require_once(EXTENSIONS . '/search_index/lib/class.reindex_datasource.php');
 	
@@ -362,6 +363,11 @@
 					'name'		=> __('Query Logs'),
 					'link'		=> '/queries/'
 				),
+				array(
+					'location'	=> __('Search Index'),
+					'name'		=> __('Preferences'),
+					'link'		=> '/preferences/'
+				),
 			);
 		}
 		
@@ -375,7 +381,7 @@
 				setcookie($cookie_name, $cookie_value);
 			}
 			
-			SearchIndex::setSessionIdFromCookie($cookie_value);
+			SearchIndexLogs::setSessionIdFromCookie($cookie_value);
 		}
 		
 		/**

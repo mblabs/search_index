@@ -15,8 +15,8 @@
 			parent::__construct($parent, $env, $process_params);
 		}
 		
-		public static function sortWordDistance($a, $b) {
-			return $a['distance'] > $b['distance'];
+		public static function sortFrequencyDesc($a, $b) {
+			return $a < $b;
 		}
 		
 		public function about(){
@@ -81,7 +81,7 @@
 		// Build SQL
 		/*-----------------------------------------------------------------------*/	
 			
-			$sql_words = sprintf(
+			$sql_indexed_words = sprintf(
 				"SELECT
 					`keywords`.`keyword`,
 					SUM(`entry_keywords`.`frequency`) AS `frequency`
@@ -94,103 +94,138 @@
 					%s
 				GROUP BY `keywords`.`keyword`
 				ORDER BY %s
-				LIMIT 0, 15",
+				LIMIT 0, 25",
 				Symphony::Database()->cleanValue($keywords),
 				(count($sections) > 0) ? sprintf('AND `entry`.section_id IN (%s)', implode(',', array_keys($sections))) : NULL,
 				$sort
 			);
 			
-			$sql_phrases = sprintf(
+			$sql_indexed_phrases = sprintf(
 				"SELECT
 					SUBSTRING_INDEX(
-						SUBSTRING(CONVERT(LOWER(data) USING utf8), LOCATE('%1\$s', CONVERT(LOWER(data) USING utf8))),
+						SUBSTRING(CONVERT(LOWER(`data`) USING utf8), LOCATE('%1\$s', CONVERT(LOWER(`data`) USING utf8))),
 						' ',
 						%2\$d
-					) as keyword
+					) as `keyword`,
+					COUNT(id) as `frequency`
 				FROM
-					sym_search_index_data
+					tbl_search_index_data
 				WHERE
-					LOWER(data) like '%3\$s'
+					LOWER(`data`) LIKE '%3\$s'
 					%4\$s
 				GROUP BY
-					SUBSTRING_INDEX(
-						SUBSTRING(
-							CONVERT(LOWER(data) USING utf8), LOCATE('%1\$s', CONVERT(LOWER(data) USING utf8))
-						),
-						' ',
-						%2\$d
-					)
+					`keyword`
+				ORDER BY
+					`frequency` DESC,
+					`keyword` ASC
 				LIMIT
-					0, 15",
+					0, 25",
 				Symphony::Database()->cleanValue($keywords),
 				((substr_count($keywords, ' ')) >= 3) ? 3 : substr_count($keywords, ' ') + 2,
 				'%' . Symphony::Database()->cleanValue($keywords) . '%',
-				(count($sections) > 0) ? sprintf('AND section_id IN (%s)', implode(',', array_keys($sections))) : NULL
+				(count($sections) > 0) ? sprintf('AND `section_id` IN (%s)', implode(',', array_keys($sections))) : NULL
 			);
+			//echo $sql_phrases;die;
+			
+			$section_handles = array_map('reset', array_values($sections));
+			natsort($section_handles);
+			
+			$sql_logged_phrases = sprintf(
+				"SELECT
+					SUBSTRING_INDEX(
+						SUBSTRING(CONVERT(LOWER(`keywords`) USING utf8), LOCATE('%1\$s', CONVERT(LOWER(`keywords`) USING utf8))),
+						' ',
+						%2\$d
+					) as `keyword`,
+					COUNT(id) as `frequency`
+				FROM
+					tbl_search_index_logs
+				WHERE
+					LOWER(`keywords`) LIKE '%3\$s'
+					%4\$s
+					AND `results` > 0
+				GROUP BY
+					`keyword`
+				ORDER BY
+					`frequency` DESC,
+					`keyword` ASC
+				LIMIT
+					0, 25",
+				Symphony::Database()->cleanValue($keywords),
+				((substr_count($keywords, ' ')) >= 3) ? 4 : substr_count($keywords, ' ') + 3,
+				'%' . Symphony::Database()->cleanValue($keywords) . '%',
+				(count($sections) > 0) ? sprintf("AND CONCAT(',', `sections`, ',') LIKE '%s'", '%,' . implode(',',$section_handles) . ',%') : NULL
+			);
+			//echo $sql_logged_phrases;die;
 
 		
 		// Run!
 		/*-----------------------------------------------------------------------*/
 			
-			// single word, search the indivudual word index
-			if(substr_count($keywords, ' ') == 0) {
-				$words = Symphony::Database()->fetch($sql_words);
+			$indexed_words = Symphony::Database()->fetch($sql_indexed_words);
+			$indexed_phrases = Symphony::Database()->fetch($sql_indexed_phrases);
+			$logged_phrases = Symphony::Database()->fetch($sql_logged_phrases);
+			
+			$terms = array();
+			foreach($indexed_words as $term) {
+				$keyword = strtolower(SearchIndex::stripPunctuation($term['keyword']));
+				$terms[$keyword] = (int)$term['frequency'];
 			}
-			// phrase, look for this phrase in full index
-			else {
-				$words = Symphony::Database()->fetch($sql_phrases);
+			foreach($indexed_phrases as $term) {
+				$keyword = strtolower(SearchIndex::stripPunctuation($term['keyword']));
+				if(isset($terms[$keyword])) {
+					$terms[$keyword] += (int)$term['frequency'];
+				} else {
+					$terms[$keyword] = (int)$term['frequency'];
+				}
+			}
+			foreach($logged_phrases as $term) {
+				$keyword = strtolower(SearchIndex::stripPunctuation($term['keyword']));
+				if(isset($terms[$keyword])) {
+					$terms[$keyword] += (int)$term['frequency'];
+				} else {
+					$terms[$keyword] = (int)$term['frequency'];
+				}
+				// from search logs given heavier weighting
+				$terms[$keyword] = $terms[$keyword] * 3;
+				$terms['___' . $keyword] = $terms[$keyword] * 3;
+				unset($terms[$keyword]);
+			}
+			
+			uasort($terms, array('datasourcesearch_suggestions', 'sortFrequencyDesc'));
+			
+			$i = 0;
+			foreach($terms as $term => $frequency) {
+				if($i > 25) continue;
 				
-				foreach($words as $i => $word) {
-					
-					$words[$i]['frequency'] = 1;
-					$words[$i]['keyword'] = SearchIndex::stripPunctuation($word['keyword']);
-					
-					// don't use if last word fails basic criteria, prevents something like
-					// "symphony is a", should just be "symphony"
-					$last_word = end(explode(' ', $word['keyword']));
-					if(
-						SearchIndex::strlen($last_word) >= (int)Symphony::Configuration()->get('max-word-length', 'search_index') ||
-						SearchIndex::strlen($last_word) < (int)Symphony::Configuration()->get('min-word-length', 'search_index') ||
-						SearchIndex::isStopWord($last_word)
-					) {
-						unset($words[$i]);
-					}
+				$words = explode(' ', $term);
+				$last_word = end($words);
+				
+				if(SearchIndex::isStopWord($last_word)) {
+					continue;
+				}
+				if(SearchIndex::strlen($last_word) >= (int)Symphony::Configuration()->get('max-word-length', 'search_index') || SearchIndex::strlen($last_word) < (int)Symphony::Configuration()->get('min-word-length', 'search_index')) {
+					continue;
 				}
 				
-			}
-			
-			// get curated autosuggestions partial matching this query
-			$autosuggest = SearchIndex::getQuerySuggestions($keywords, TRUE);
-			
-			foreach($autosuggest as $i => $word) {
-				$result->appendChild(
-					new XMLElement(
-						'word',
-						General::sanitize($word),
-						array(
-							'curated' => 'yes',
-							'handle' => Lang::createHandle($word)
-						)
-					)
-				);
-				// store lowercase for uniqueness comparison later
-				$autosuggest[$i] = strtolower($word);
-			}
-			
-			foreach($words as $word) {
-				// if already matched in the autosuggest output, do not repeat here
-				if(in_array(strtolower($word['keyword']), $autosuggest)) continue;
+				$is_phrase = FALSE;
+				if(preg_match('/^___/', $term)) {
+					$term = trim($term, '_');
+					$is_phrase = TRUE;
+				}
 				
 				$result->appendChild(
 					new XMLElement(
 						'word',
-						General::sanitize($word['keyword']),
+						General::sanitize($term),
 						array(
-							'frequency' => $word['frequency'],
-							'handle' => Lang::createHandle($word['keyword'])
+							'weighting' => $frequency,
+							'handle' => Lang::createHandle($term)
 						)
 					)
 				);
+				
+				$i++;
 			}
 			
 			return $result;

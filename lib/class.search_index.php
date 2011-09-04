@@ -8,8 +8,6 @@ Class SearchIndex {
 	private static $_where = NULL;
 	private static $_joins = NULL;
 	
-	private static $_session_id = NULL;
-	
 	private static $_stopwords = NULL;
 	
 	/**
@@ -712,14 +710,6 @@ Class SearchIndex {
 		
 		return trim($keywords_manipulated);
 		
-	}
-	
-	public function setSessionIdFromCookie($session_id) {
-		self::$_session_id = $session_id;
-	}
-	
-	public function getSessionId() {
-		return self::$_session_id;
 	}
 	
 	public static function parseKeywordString($keywords, $stem_words=FALSE) {

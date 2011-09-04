@@ -8,8 +8,6 @@
 	Class datasourcesearch extends Datasource{
 		
 		public $dsParamROOTELEMENT = 'search';
-		public $dsParamLIMIT = '1';
-		public $dsParamSTARTPAGE = '1';
 		
 		public function __construct(&$parent, $env=NULL, $process_params=true){
 			parent::__construct($parent, $env, $process_params);
@@ -52,23 +50,20 @@
 		// Setup
 		/*-----------------------------------------------------------------------*/	
 			
-			// look for key in GET array if it's specified
-			if (!empty($config->{'get-param-prefix'})) {
-				if ($config->{'get-param-prefix'} == 'param_pool') {
-					$_GET = $this->_env['param'];
-				} else {
-					$_GET = $_GET[$config->{'get-param-prefix'}];
-				}
-			}
-			
 			// get input parameters from GET request
-			$param_keywords = isset($_GET[$config->{'get-param-keywords'}]) ? trim($_GET[$config->{'get-param-keywords'}]) : '';
-			$param_sort = isset($_GET[$config->{'get-param-sort'}]) ? $_GET[$config->{'get-param-sort'}] : $config->{'default-sort'};
-			$param_direction = isset($_GET[$config->{'get-param-direction'}]) ? strtolower($_GET[$config->{'get-param-direction'}]) : $config->{'default-direction'};
+			$param_keywords = trim($this->__processParametersInString($config->{'param-keywords'}, $this->_env));
 			
-			// set pagination on the data source
-			$this->dsParamSTARTPAGE = isset($_GET[$config->{'get-param-page'}]) ? (int)$_GET[$config->{'get-param-page'}] : $this->dsParamSTARTPAGE;
-			$this->dsParamLIMIT = (isset($_GET[$config->{'get-param-per-page'}]) && (int)$_GET[$config->{'get-param-per-page'}] > 0) ? (int)$_GET[$config->{'get-param-per-page'}] : $config->{'default-per-page'};
+			$param_sort = trim($this->__processParametersInString($config->{'param-sort'}, $this->_env));
+			if(empty($param_sort)) $param_sort = $config->{'default-sort'};
+			
+			$param_direction = trim($this->__processParametersInString($config->{'param-direction'}, $this->_env));
+			if(empty($param_direction)) $param_direction = $config->{'default-direction'};
+			
+			$this->dsParamSTARTPAGE = (int)$this->__processParametersInString($config->{'param-page'}, $this->_env);
+			if($this->dsParamSTARTPAGE == 0) $this->dsParamSTARTPAGE = 1;
+			
+			$this->dsParamLIMIT = (int)$this->__processParametersInString($config->{'param-per-page'}, $this->_env);
+			if($this->dsParamLIMIT == 0) $this->dsParamLIMIT = $config->{'default-per-page'};
 			
 			// build ORDER BY statement for later
 			switch($param_sort) {
@@ -84,15 +79,24 @@
 		
 		// Find valid sections to query
 		/*-----------------------------------------------------------------------*/
-		
-			if(isset($_GET[$config->{'get-param-sections'}]) && !empty($_GET[$config->{'get-param-sections'}])) {
-				$param_sections = $_GET[$config->{'get-param-sections'}];
-				// allow sections to be sent as an array if the user wishes (multi-select or checkboxes)
-				if(is_array($param_sections)) implode(',', $param_sections);
+			
+			// if the sections param a URL param in the form {$url-something}
+			// check if it's an array e.g. something[]=a&something[]=b
+			preg_match('@{\$url-([^}]+)}@i', $config->{'param-sections'}, $matches);
+			if(isset($matches[1])) $url_param_sections_name = $matches[1];
+			if(isset($_GET[$url_param_sections_name]) && is_array($_GET[$url_param_sections_name])) {
+				$param_sections = implode(',', $_GET[$url_param_sections_name]);
 			}
+			// fall back to normal param implementation, page or URL parameters
+			elseif($param_sections = $this->__processParametersInString($config->{'param-sections'}, $this->_env)) {
+				// normal
+			}
+			// fall back to the default in config
 			elseif(!empty($config->{'default-sections'})) {
 				$param_sections = $config->{'default-sections'};
-			} else {
+			}
+			// fall back to nothing..
+			else {
 				$param_sections = '';
 			}
 			
@@ -530,48 +534,8 @@
 		/*-----------------------------------------------------------------------*/	
 		
 			if ($config->{'log-keywords'} == 'yes') {
-				
 				$section_handles = array_map('reset', array_values($search_sections));
-				
-				$id = sha1(sprintf(
-					'%s-%s-%s',
-					SearchIndex::getSessionId(),
-					Symphony::Database()->cleanValue($param_keywords),
-					Symphony::Database()->cleanValue(implode(',', $section_handles))
-				));
-				
-				// has this search (keywords+sections) already been logged this session?
-				$already_logged = Symphony::Database()->fetchVar('id', 0, sprintf(
-					"SELECT
-					 	id
-					FROM
-						`tbl_search_index_logs`
-					WHERE 1=1
-						AND id = '%s'
-						AND page >= '%d'
-					",
-					$id,
-					$this->dsParamSTARTPAGE
-				));
-				
-				if(!$already_logged) {
-					Symphony::Database()->insert(
-						array(
-							'id' => $id,
-							'date' => date('Y-m-d H:i:s', time()),
-							'keywords' => Symphony::Database()->cleanValue($param_keywords),
-							'sections' => Symphony::Database()->cleanValue(implode(',', $section_handles)),
-							'page' => $this->dsParamSTARTPAGE,
-							'results' => $total_entries,
-							'session_id' => SearchIndex::getSessionId(),
-							'user_agent' => Symphony::Database()->cleanValue(HTTP_USER_AGENT),
-							'ip' => Symphony::Database()->cleanValue(REMOTE_ADDR),
-						),
-						'tbl_search_index_logs',
-						TRUE
-					);
-				}
-				
+				SearchIndexLogs::save($param_keywords, $section_handles, $this->dsParamSTARTPAGE, $total_entries);
 			}
 		
 			return $result;		

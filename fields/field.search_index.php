@@ -146,16 +146,18 @@
 			$keywords_boolean = SearchIndex::parseKeywordString($keywords, $do_stemming);
 			$this->keywords_highlight = trim(implode(' ', $keywords_boolean['highlight']), '"');
 			
+			$has_keywords = FALSE;
+			
 			switch($mode) {
 				
-				case 'FULLTEXT':				
+				case 'FULLTEXT':
+					$has_keywords = TRUE;				
 					$where .= " AND MATCH(search_index.data) AGAINST ('{$keywords}' IN BOOLEAN MODE) ";
 				break;
 				
 				case 'LIKE':
 				case 'REGEXP':
 					
-					$has_keywords = FALSE;
 					$sql_where = '';
 					
 					// by default, no wildcard separators

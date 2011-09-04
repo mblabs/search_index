@@ -1,7 +1,61 @@
 <?php
 
 Class SearchIndexLogs {
+	
+	private static $_session_id = NULL;
+	
+	public function setSessionIdFromCookie($session_id) {
+		self::$_session_id = $session_id;
+	}
+	
+	public static function save($keywords=NULL, $sections=NULL, $page=1, $total_entries=0) {
 		
+		if(is_array($sections)) {
+			natsort($sections);
+			$sections = implode(',', $sections);
+		}
+		
+		$id = sha1(sprintf(
+			'%s-%s-%s',
+			self::$_session_id,
+			Symphony::Database()->cleanValue($keywords),
+			Symphony::Database()->cleanValue($sections)
+		));
+		
+		// has this search (keywords+sections) already been logged this session?
+		$already_logged = Symphony::Database()->fetchVar('id', 0, sprintf(
+			"SELECT
+			 	id
+			FROM
+				`tbl_search_index_logs`
+			WHERE 1=1
+				AND id = '%s'
+				AND page >= '%d'
+			",
+			$id,
+			$page
+		));
+		
+		if(!$already_logged) {
+			Symphony::Database()->insert(
+				array(
+					'id' => $id,
+					'date' => date('Y-m-d H:i:s', time()),
+					'keywords' => Symphony::Database()->cleanValue($keywords),
+					'sections' => Symphony::Database()->cleanValue($sections),
+					'page' => $page,
+					'results' => $total_entries,
+					'session_id' => self::$_session_id,
+					'user_agent' => Symphony::Database()->cleanValue(HTTP_USER_AGENT),
+					'ip' => Symphony::Database()->cleanValue(REMOTE_ADDR),
+				),
+				'tbl_search_index_logs',
+				TRUE
+			);
+		}
+		
+	}
+	
 	public static function getTotalSessions($filter) {
 		$sql = sprintf(
 			"SELECT
